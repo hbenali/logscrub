@@ -44,8 +44,8 @@
   .bar i:nth-child(1){background:#f77070} .bar i:nth-child(2){background:#f7b955} .bar i:nth-child(3){background:#6ad19e}
   .bar b { margin-left: 12px; font: 500 12px 'JetBrains Mono', monospace; color: var(--muted); }
   /* crop of the real UI: the log lines, at ~1.25x so the colors read */
-  .view { width: 704px; height: 392px; overflow: hidden; position: relative; background: #0d0f12; }
-  .view img { position: absolute; width: 1872px; height: auto; left: -262px; top: -42px; }
+  .view { width: 704px; height: 336px; overflow: hidden; position: relative; background: #0d0f12; }
+  .view img { position: absolute; width: 1298px; height: auto; left: -26px; top: -649px; }
   .fade { position: absolute; left: 640px; top: 78px; width: 700px; height: 520px; pointer-events: none;
           background: linear-gradient(90deg, rgba(13,15,18,0.0) 80%, rgba(13,15,18,0.0)); }
 </style></head>
@@ -55,10 +55,10 @@
       <svg viewBox="0 0 20 20" fill="none"><rect x="1" y="1" width="18" height="18" rx="4" stroke="#4f8ef7" stroke-width="1.5"/><path d="M4.5 6.5h11M4.5 10h7M4.5 13.5h9" stroke="#4f8ef7" stroke-width="1.5" stroke-linecap="round"/></svg>
       <span>logscrub</span>
     </div>
-    <h1>__HEADLINE_LINE_1__<br>__HEADLINE_LINE_2__ <em>__HEADLINE_ACCENT__</em>.</h1>
-    <p class="sub">__SUBTITLE__</p>
-    <div class="chips"><span class="chip">__CHIP_1__</span><span class="chip">__CHIP_2__</span><span class="chip">__CHIP_3__</span><span class="chip">__CHIP_4__</span></div>
-    <div class="cmd"><span class="p">$</span><span>__INSTALL_COMMAND__</span></div>
+    <h1>Share your logs,<br>not your <em>secrets</em>.</h1>
+    <p class="sub">Masks secrets and personal data in logs before they reach a ticket, a chat or a bug report.</p>
+    <div class="chips"><span class="chip">Linear-time</span><span class="chip">Pseudonyms</span><span class="chip">Local web UI</span><span class="chip">Single binary</span></div>
+    <div class="cmd"><span class="p">$</span><span>some-command | <span class="a">logscrub</span> &gt; clean.log</span></div>
   </div>
-  <div class="shot"><div class="bar"><i></i><i></i><i></i><b>__WINDOW_TITLE__</b></div><div class="view"><img src="../screenshots/overview.png"></div></div>
+  <div class="shot"><div class="bar"><i></i><i></i><i></i><b>logscrub serve · 127.0.0.1:8080</b></div><div class="view"><img src="../screenshots/overview.png"></div></div>
 </div></body></html>

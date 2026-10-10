@@ -1,5 +1,7 @@
 # logscrub
 
+![logscrub: share your logs, not your secrets](https://raw.githubusercontent.com/hbenali/logscrub/main/docs/banner.png)
+
 Mask secrets and personal data in logs
 
 ## Where to go next

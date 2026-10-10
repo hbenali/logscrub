@@ -1,5 +1,7 @@
 # logscrub
 
+![logscrub: share your logs, not your secrets](docs/banner.png)
+
 Mask secrets and personal data in logs so they can be shared safely (bug reports, tickets, chat).
 
 ```sh

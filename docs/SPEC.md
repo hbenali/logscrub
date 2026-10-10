@@ -1,6 +1,6 @@
 # logscrub: specification (MVP, v0.1)
 
-Status: M1 (CLI core) and M2 (pseudonyms, config, PII detectors, prefilter) implemented; the web UI (M4) is planned.
+Status: M1 (CLI core) and M2 (pseudonyms, config, PII detectors, prefilter) and M4 (web UI) implemented.
 
 ## 1. Purpose and positioning
 

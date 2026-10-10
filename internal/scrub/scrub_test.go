@@ -337,6 +337,14 @@ func FuzzScrub(f *testing.F) {
 			}
 			t.Fatalf("unexpected error: %v", err)
 		}
+		// The spans reported for the web UI must rebuild the output exactly.
+		so, spans, serr := scrubWithSpans(o, string(in))
+		if serr != nil {
+			t.Fatalf("observed run failed: %v", serr)
+		}
+		if rebuilt, ok := applySpans(string(in), spans); !ok || rebuilt != so || so != out.String() {
+			t.Fatalf("spans do not reproduce the output (ok=%v)", ok)
+		}
 		// The prefilter must never change what is masked.
 		o.NoPrefilter = true
 		var plain bytes.Buffer

@@ -9,6 +9,7 @@ logscrub --check app.log         # CI gate: exit 1 if anything would be masked
 logscrub --report app.log        # counts per detector, never the matched text
 logscrub --mode pseudonym app.log          # stable tags for emails and IPs: the log stays debuggable
 logscrub --config logscrub.toml app.log    # allow-list, custom rules, enable/disable detectors
+logscrub serve                             # local web UI: paste or drop a log, see what would be masked
 ```
 
 ```text
@@ -27,13 +28,17 @@ connect postgres://[REDACTED:url-credentials]@db/x
 
 **Pseudonym mode** replaces emails and IPs with `[email:k3x9p2qa]`-style tags derived from an HMAC key, so the same address maps to the same tag across a file and across runs (give `--key-file` or `LOGSCRUB_KEY`). Secrets always get a fixed marker, never a tag. See the [wiki](https://github.com/hbenali/logscrub/wiki/Configuration) for the config file. The roadmap is in [docs/SPEC.md](docs/SPEC.md).
 
+## Web UI
+
+`logscrub serve` opens a local page (default `http://127.0.0.1:8080`): paste or drop a log, see every match highlighted by detector, toggle detectors, switch between markers and stable tags, and download the cleaned text. It uses the same engine as the CLI. The text is processed in memory by the local process; the page loads nothing from anywhere else (strict CSP, no CDN, no analytics). It listens on loopback only unless you pass `--allow-remote`, because it has no authentication. See the [wiki](https://github.com/hbenali/logscrub/wiki/Web-UI).
+
 ## Why another one
 
 - **Linear-time matching.** Go's RE2 engine: hostile input cannot trigger ReDoS.
 - **Measured false positives.** A "must not change" corpus of realistic logs runs in CI; `max_tokens=100` and `ssh://git@host` stay untouched.
 - **Bounded memory, fail closed.** Streams line by line; a line it cannot scan safely is an error (exit 3), never passed through.
 - **No network, no files written, never echoes what it finds.** Reports and errors contain counts and ids only.
-- One static binary, a distroless Docker image, signed releases.
+- One static binary, a distroless Docker image, signed releases, and a web UI that cannot phone home.
 
 ## Install
 

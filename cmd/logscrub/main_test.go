@@ -197,3 +197,32 @@ func TestListShowsOptionalDetectors(t *testing.T) {
 		t.Errorf("list: %q", out)
 	}
 }
+
+func TestServeRefusesRemoteBindAndBadArguments(t *testing.T) {
+	cfg := writeFile(t, "bad.toml", "colour = 'red'\n")
+	short := writeFile(t, "short.key", "tooshort")
+	tests := map[string][]string{
+		"non-loopback without opt-in": {"serve", "--addr", "0.0.0.0:0"},
+		"unexpected argument":         {"serve", "extra"},
+		"bad config":                  {"serve", "--config", cfg},
+		"short key":                   {"serve", "--key-file", short},
+		"tiny body limit":             {"serve", "--max-body-bytes", "10"},
+	}
+	for name, args := range tests {
+		code, out, errOut := exec(t, "", args...)
+		if code == exitOK || out != "" {
+			t.Errorf("%s: code=%d stdout=%q stderr=%q", name, code, out, errOut)
+		}
+	}
+	code, _, errOut := exec(t, "", "serve", "--addr", "0.0.0.0:0")
+	if code != exitIOFail || !strings.Contains(errOut, "allow-remote") {
+		t.Errorf("remote bind: code=%d stderr=%q", code, errOut)
+	}
+}
+
+func TestServeHelp(t *testing.T) {
+	code, _, errOut := exec(t, "", "serve", "-h")
+	if code != exitOK || !strings.Contains(errOut, "--allow-remote") && !strings.Contains(errOut, "-allow-remote") {
+		t.Errorf("code=%d stderr=%q", code, errOut)
+	}
+}

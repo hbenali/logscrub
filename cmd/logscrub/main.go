@@ -35,6 +35,9 @@ func main() {
 }
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "serve" {
+		return runServeSignals(args[1:], stderr)
+	}
 	fs := flag.NewFlagSet("logscrub", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var (
@@ -51,6 +54,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	)
 	fs.Usage = func() {
 		outf(stderr, `Usage: logscrub [flags] [file ...]
+       logscrub serve [flags]      (local web UI; see logscrub serve -h)
 
 Reads files (or stdin when none, or "-") and writes the text with secrets masked.
 Pattern matching cannot find every secret: review the output before sharing it.

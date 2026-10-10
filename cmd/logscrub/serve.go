@@ -1,0 +1,94 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"flag"
+	"io"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/hbenali/logscrub/internal/config"
+	"github.com/hbenali/logscrub/internal/detect"
+	"github.com/hbenali/logscrub/internal/scrub"
+	"github.com/hbenali/logscrub/internal/serve"
+)
+
+// runServeSignals runs the web UI until interrupted.
+func runServeSignals(args []string, stderr io.Writer) int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return runServe(ctx, args, stderr)
+}
+
+func runServe(ctx context.Context, args []string, stderr io.Writer) int {
+	fs := flag.NewFlagSet("logscrub serve", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	var (
+		addr        = fs.String("addr", serve.DefaultAddr, "address to listen on (loopback by default)")
+		allowRemote = fs.Bool("allow-remote", false, "allow a non-loopback address (the UI has no authentication)")
+		configPath  = fs.String("config", "", "TOML rules file (same as the CLI)")
+		keyFile     = fs.String("key-file", "", "file holding the pseudonym HMAC key (or set LOGSCRUB_KEY); default: random per run")
+		maxBody     = fs.Int64("max-body-bytes", serve.DefaultMaxBodyBytes, "largest text accepted")
+		maxLine     = fs.Int("max-line-bytes", scrub.DefaultMaxLineBytes, "longest line scanned in one piece")
+	)
+	fs.Usage = func() {
+		outf(stderr, "Usage: logscrub serve [flags]\n\nA local web UI: paste or drop a log, see what would be masked, download the cleaned text.\nText is processed in memory and never stored or sent anywhere else.\n\nFlags:\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return exitOK
+		}
+		return exitUsage
+	}
+	if fs.NArg() > 0 {
+		outf(stderr, "logscrub serve: unexpected argument %q\n", fs.Arg(0))
+		return exitUsage
+	}
+	if *maxLine < 1024 || *maxBody < 1024 {
+		outf(stderr, "logscrub serve: --max-line-bytes and --max-body-bytes must be at least 1024\n")
+		return exitUsage
+	}
+
+	var cfg config.Config
+	if *configPath != "" {
+		c, err := config.Load(*configPath)
+		if err != nil {
+			outf(stderr, "logscrub: %v\n", err)
+			return exitUsage
+		}
+		cfg = *c
+	}
+	allow, rules, err := cfg.Compile()
+	if err != nil {
+		outf(stderr, "logscrub: %v\n", err)
+		return exitUsage
+	}
+	on, err := selectDetectors(rules, cfg.Enable, cfg.Disable)
+	if err != nil {
+		outf(stderr, "logscrub: %v\n", err)
+		return exitUsage
+	}
+	key, err := pseudonymKey("pseudonym", *keyFile)
+	if err != nil {
+		outf(stderr, "logscrub: %v\n", err)
+		return exitUsage
+	}
+	defaultOn := make([]string, len(on))
+	for i, d := range on {
+		defaultOn[i] = d.ID
+	}
+
+	err = serve.Run(ctx, serve.Options{
+		Addr: *addr, AllowRemote: *allowRemote, MaxBodyBytes: *maxBody, MaxLineBytes: *maxLine,
+		Detectors: append(detect.All(), rules...), DefaultOn: defaultOn,
+		Allow: allow, Key: key, Version: orUnknown(version),
+	}, stderr)
+	if err != nil {
+		outf(stderr, "logscrub: %v\n", err)
+		return exitIOFail
+	}
+	return exitOK
+}

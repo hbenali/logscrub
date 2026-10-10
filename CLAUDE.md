@@ -17,10 +17,11 @@ Run the tests, linter and type/vet checks before committing; CI runs them on eve
 ## Layout
 
 - `cmd/logscrub/main.go`: flags, exit codes, wiring only (detector selection, pseudonym key handling).
+- `internal/serve/`: the web UI server (`serve.go`) and its embedded page (`web/`). Security checks live in `protect`, `checkOrigin` and `handleScrub`; each has a test that fails without it.
 - `internal/config/`: strict TOML rules file (enable/disable, allow-list, custom RE2 rules).
 - `internal/detect/`: the detectors (RE2 patterns + validators). Adding one means positives, negatives and a clean-corpus check.
 - `internal/scrub/`: the streaming engine (line reader, windowing for huge lines, overlap resolution, private-key blocks).
-- `testdata/clean/`: the **must-not-change corpus**; `docs/SPEC.md`: the spec and milestones (M1 CLI core and M2 pseudonyms/config/PII/prefilter done; M4 web UI next).
+- `testdata/clean/`: the **must-not-change corpus**; `docs/SPEC.md`: the spec and milestones (M1 CLI core, M2 pseudonyms/config/PII/prefilter and M4 web UI done).
 
 ## Conventions and gotchas
 
@@ -30,6 +31,8 @@ Run the tests, linter and type/vet checks before committing; CI runs them on eve
 - **Detectors need a false-positive trap in `testdata/clean/`** (`max_tokens=100`, `ssh://git@host`, `refresh token: refused`). Keys must *end* in the secret word; `name: value` only on YAML-looking lines.
 - **Throughput is ~10 MB/s** thanks to the per-detector prefilter (`Hints`/`Pre`). Every detector should declare hints; `TestPrefilterDoesNotChangeOutput` and the fuzz target compare output with and without the prefilter, so a wrong hint fails CI. Hints for case-insensitive patterns must be lowercase.
 - **RE2 has no lookaround:** use a `Check` hook for "not part of a longer token" instead of consuming boundary characters in the regexp (that breaks adjacent matches).
+- **Web UI is reachable from every page the user visits.** Keep Host, Origin, Content-Type, size and concurrency checks and the strict CSP; never add `unsafe-inline`, a CDN, `innerHTML` or inline script/style (a test greps the assets). The engine reports match offsets via `scrub.Options.Observe` (UTF-8 byte offsets; applying the spans to the input must reproduce the output, which the fuzz target checks).
+- **Test the UI in a real browser after any change to `internal/serve/web`**: highlights with multibyte text, an XSS payload line, CSP violations via a `securitypolicyviolation` listener plus a second local server that records requests, and the download contents.
 - **Pseudonym mode:** only detectors with `Pseudonym: true` get HMAC tags; secrets keep fixed markers (a stable tag on a secret is a fingerprint). Keys come from a file or `LOGSCRUB_KEY`, never argv.
 - Commit with `GIT_CONFIG_GLOBAL=$HOME/.gitconfigp`, no trailers.
 - **Security tests fail without the fix.** Every auth/injection/resource-limit fix ships with a regression test that was seen failing first.

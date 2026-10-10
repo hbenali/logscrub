@@ -8,6 +8,7 @@ Mask secrets and personal data in logs
 | --- | --- |
 | Install it | [Installation](Installation) |
 | Configure rules, allow-lists, pseudonyms | [Configuration](Configuration) |
+| Use the browser UI | [Web UI](Web-UI) |
 | Fix a problem | [Troubleshooting](Troubleshooting) |
 | Run it safely | [Security](Security) |
 | Contribute or cut a release | [Contributing](Contributing) |

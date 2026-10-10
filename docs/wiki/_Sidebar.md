@@ -2,6 +2,7 @@
 
 * [Installation](Installation)
 * [Configuration](Configuration)
+* [Web UI](Web-UI)
 * [Troubleshooting](Troubleshooting)
 * [Security](Security)
 * [Contributing](Contributing)

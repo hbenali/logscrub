@@ -23,3 +23,6 @@ coverage/
 
 # goreleaser scratch (gzipped man page for packages)
 .build/
+
+# demo build output
+_site/

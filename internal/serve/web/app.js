@@ -21,6 +21,19 @@
     history.replaceState(null, '', location.pathname + location.search);
   }
 
+  // A made-up log for trying the page (documentation-range addresses, an
+  // example AWS key, a made-up password): nothing here is a real secret.
+  const SAMPLE = [
+    '2026-10-10T13:55:36Z INFO  login ok user=alice@example.org ip=203.0.113.7 ua="Mozilla/5.0 Chrome/126.0.0.0"',
+    '2026-10-10T13:55:37Z INFO  login ok user=alice@example.org ip=203.0.113.7 from /home/alice/work',
+    '2026-10-10T13:55:38Z WARN  login failed user=bob@example.org ip=2001:db8::1f',
+    '2026-10-10T13:55:39Z DEBUG deploy key AKIAIOSFODNN7EXAMPLE used by ci',
+    '2026-10-10T13:55:40Z DEBUG db postgres://app:s3cretpass@10.0.0.9:5432/orders?sslmode=require',
+    '2026-10-10T13:55:41Z INFO  api call Authorization: Bearer 3f9a1c2e7b5d4e6f8a0b1c2d3e4f5a6b',
+    '2026-10-10T13:55:42Z INFO  paid card=4111 1111 1111 1111 order=20261010135542',
+    '2026-10-10T13:55:43Z INFO  GET /health 200 from 127.0.0.1 (loopback is left alone)',
+  ].join('\n') + '\n';
+
   let detectors = [];
   let maxBytes = 10 * 1024 * 1024;
   let timer = null, seq = 0, controller = null;
@@ -62,11 +75,29 @@
 
   class NeedToken extends Error {}
 
+  // Where the work happens. The local server talks over HTTP; the in-browser
+  // demo defines window.logscrubBackend (WebAssembly) before this script runs.
+  const httpBackend = {
+    async detectors() {
+      const res = await fetch('/api/detectors', { headers: authHeaders() });
+      if (res.status === 401) throw new NeedToken();
+      if (!res.ok) throw new Error('could not load the detector list');
+      return res.json();
+    },
+    async scrub(request, signal) {
+      const res = await fetch('/api/scrub', {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(request),
+        signal,
+      });
+      return { status: res.status, ok: res.ok, body: await res.json() };
+    },
+  };
+  const backend = window.logscrubBackend || httpBackend;
+
   async function loadDetectors() {
-    const res = await fetch('/api/detectors', { headers: authHeaders() });
-    if (res.status === 401) throw new NeedToken();
-    if (!res.ok) throw new Error('could not load the detector list');
-    const body = await res.json();
+    const body = await backend.detectors();
     detectors = body.detectors;
     maxBytes = body.maxBodyBytes;
     const box = $('detectors');
@@ -114,13 +145,8 @@
     controller = new AbortController();
     statusEl.textContent = 'Scanning…';
     try {
-      const res = await fetch('/api/scrub', {
-        method: 'POST',
-        headers: authHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ text, detectors: selectedIds(), mode: mode() }),
-        signal: controller.signal,
-      });
-      const body = await res.json();
+      const res = await backend.scrub({ text, detectors: selectedIds(), mode: mode() }, controller.signal);
+      const body = res.body;
       if (my !== seq) return; // a newer request superseded this one
       if (res.status === 401) {
         askForToken(true);
@@ -207,6 +233,7 @@
     if (f) readFile(f);
   });
   $('file').addEventListener('change', (e) => { if (e.target.files[0]) readFile(e.target.files[0]); e.target.value = ''; });
+  $('sample').addEventListener('click', () => { input.value = SAMPLE; setError(''); run(); input.focus(); });
   $('clear').addEventListener('click', () => { input.value = ''; setError(''); run(); input.focus(); });
   document.querySelectorAll('input[name="mode"]').forEach((el) => el.addEventListener('change', schedule));
   $('tab-preview').addEventListener('click', () => showTab('preview'));
@@ -233,6 +260,7 @@
 
   function start() {
     tokenForm.hidden = true;
+    if (window.logscrubDemo && input.value === '') input.value = SAMPLE;
     loadDetectors().then(run).catch((err) => {
       if (err instanceof NeedToken) askForToken(Boolean(token));
       else setError(err.message);

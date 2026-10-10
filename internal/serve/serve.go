@@ -10,7 +10,6 @@
 package serve
 
 import (
-	"bytes"
 	"context"
 	"crypto/subtle"
 	"embed"
@@ -28,7 +27,7 @@ import (
 	"time"
 
 	"github.com/hbenali/logscrub/internal/detect"
-	"github.com/hbenali/logscrub/internal/scrub"
+	"github.com/hbenali/logscrub/internal/scrubapi"
 )
 
 //go:embed web
@@ -200,13 +199,12 @@ type asset struct {
 }
 
 type server struct {
-	o        Options
-	hosts    map[string]bool
-	anyHost  bool
-	sem      chan struct{}
-	static   map[string]asset // URL path -> file; the only files ever served
-	byID     map[string]*detect.Detector
-	defaults map[string]bool
+	o       Options
+	hosts   map[string]bool
+	anyHost bool
+	sem     chan struct{}
+	static  map[string]asset // URL path -> file; the only files ever served
+	api     *scrubapi.Config
 }
 
 // NewHandler builds the HTTP handler. hosts is the set of accepted Host header
@@ -216,16 +214,12 @@ func NewHandler(o Options, hosts map[string]bool, anyHost bool) http.Handler {
 	o.fill()
 	s := &server{
 		o: o, hosts: hosts, anyHost: anyHost,
-		sem:      make(chan struct{}, o.Concurrency),
-		static:   loadAssets(),
-		byID:     map[string]*detect.Detector{},
-		defaults: map[string]bool{},
-	}
-	for _, d := range o.Detectors {
-		s.byID[d.ID] = d
-	}
-	for _, id := range o.DefaultOn {
-		s.defaults[id] = true
+		sem:    make(chan struct{}, o.Concurrency),
+		static: loadAssets(),
+		api: &scrubapi.Config{
+			Detectors: o.Detectors, DefaultOn: o.DefaultOn, Allow: o.Allow, Key: o.Key,
+			MaxTextBytes: o.MaxBodyBytes, MaxLineBytes: o.MaxLineBytes, MaxPrivateKeyLines: o.MaxPrivateKeyLines,
+		},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/detectors", s.handleDetectors)
@@ -295,14 +289,6 @@ func (s *server) handleStatic(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(a.body)
 }
 
-type detectorInfo struct {
-	ID        string `json:"id"`
-	Desc      string `json:"desc"`
-	Optional  bool   `json:"optional"`
-	Pseudonym bool   `json:"pseudonym"`
-	Default   bool   `json:"default"`
-}
-
 // authorized checks the access token, in constant time. With no token
 // configured everything is allowed (loopback use).
 func (s *server) authorized(r *http.Request) bool {
@@ -327,28 +313,11 @@ func (s *server) handleDetectors(w http.ResponseWriter, r *http.Request) {
 		s.denyUnauthorized(w)
 		return
 	}
-	infos := make([]detectorInfo, 0, len(s.o.Detectors))
-	for _, d := range s.o.Detectors {
-		infos = append(infos, detectorInfo{d.ID, d.Desc, d.Optional, d.Pseudonym, s.defaults[d.ID]})
-	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"detectors":    infos,
+		"detectors":    s.api.Infos(),
 		"maxBodyBytes": s.o.MaxBodyBytes,
 		"version":      s.o.Version,
 	})
-}
-
-type scrubRequest struct {
-	Text      string   `json:"text"`
-	Detectors []string `json:"detectors"`
-	Mode      string   `json:"mode"`
-}
-
-type spanOut struct {
-	Start       int64  `json:"start"`
-	End         int64  `json:"end"`
-	Detector    string `json:"detector"`
-	Replacement string `json:"replacement"`
 }
 
 func (s *server) handleScrub(w http.ResponseWriter, r *http.Request) {
@@ -381,7 +350,7 @@ func (s *server) handleScrub(w http.ResponseWriter, r *http.Request) {
 	// JSON escaping can inflate the text, so allow some headroom on the raw
 	// body and enforce the real limit on the decoded text below.
 	r.Body = http.MaxBytesReader(w, r.Body, 2*s.o.MaxBodyBytes+(64<<10))
-	var req scrubRequest
+	var req scrubapi.Request
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
@@ -397,90 +366,12 @@ func (s *server) handleScrub(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid JSON request")
 		return
 	}
-	if int64(len(req.Text)) > s.o.MaxBodyBytes {
-		writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("text is larger than %d bytes", s.o.MaxBodyBytes))
+	res, aerr := s.api.Run(req)
+	if aerr != nil {
+		writeError(w, aerr.Status, aerr.Message)
 		return
 	}
-
-	dets, err := s.pickDetectors(req.Detectors)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	var key []byte
-	switch req.Mode {
-	case "", "marker":
-	case "pseudonym":
-		if s.o.Key == nil {
-			writeError(w, http.StatusBadRequest, "pseudonym mode is not available (no key)")
-			return
-		}
-		key = s.o.Key
-	default:
-		writeError(w, http.StatusBadRequest, "mode must be marker or pseudonym")
-		return
-	}
-
-	var spans []spanOut
-	truncated := false
-	sc := scrub.New(scrub.Options{
-		Detectors: dets, MaxLineBytes: s.o.MaxLineBytes, MaxPrivateKeyLines: s.o.MaxPrivateKeyLines, Key: key, Allow: s.o.Allow,
-		Observe: func(sp scrub.Span) {
-			if len(spans) >= maxSpans {
-				truncated = true
-				return
-			}
-			spans = append(spans, spanOut{sp.Start, sp.End, sp.Detector, sp.Replacement})
-		},
-	})
-	var out bytes.Buffer
-	if err := sc.Run(strings.NewReader(req.Text), &out); err != nil {
-		if errors.Is(err, scrub.ErrLineTooLong) {
-			writeError(w, http.StatusUnprocessableEntity, "a line is too long to scan safely")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "scrubbing failed")
-		return
-	}
-	res := sc.Result()
-	if spans == nil {
-		spans = []spanOut{}
-	}
-	warnings := res.Warnings
-	if warnings == nil {
-		warnings = []string{}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"output":         out.String(),
-		"spans":          spans,
-		"spansTruncated": truncated,
-		"counts":         res.Counts,
-		"warnings":       warnings,
-	})
-}
-
-func (s *server) pickDetectors(ids []string) ([]*detect.Detector, error) {
-	if ids == nil {
-		for _, d := range s.o.Detectors {
-			if s.defaults[d.ID] {
-				ids = append(ids, d.ID)
-			}
-		}
-	}
-	want := map[string]bool{}
-	for _, id := range ids {
-		if _, ok := s.byID[id]; !ok {
-			return nil, errors.New("unknown detector id")
-		}
-		want[id] = true
-	}
-	var out []*detect.Detector
-	for _, d := range s.o.Detectors { // keep priority order
-		if want[d.ID] {
-			out = append(out, d)
-		}
-	}
-	return out, nil
+	writeJSON(w, http.StatusOK, res)
 }
 
 // checkOrigin returns an error message if the request did not come from this

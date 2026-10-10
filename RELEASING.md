@@ -38,3 +38,17 @@ itself: you wait for the draft, write the notes and publish it.
    Trivy and Scorecard are green with no open alerts.
 
 1. If the Docker workflow bumps a pinned base-image reference automatically, check that its commit landed.
+
+## After publishing: update the Homebrew tap
+
+The tap (`hbenali/homebrew-tap`) is a separate repository. Its formula is generated from the published release's own `checksums.txt`, so run this only after the release is published:
+
+```sh
+git clone git@github.com:hbenali/homebrew-tap.git /tmp/tap
+scripts/update-tap.sh X.Y.Z /tmp/tap
+cd /tmp/tap && git add -A && git commit -m "feat: logscrub X.Y.Z" && git push
+```
+
+Check it in a real Homebrew (`docker run --rm ghcr.io/homebrew/brew:latest ...`: `brew tap hbenali/tap && brew install hbenali/tap/logscrub && brew test hbenali/tap/logscrub && brew audit --strict hbenali/tap/logscrub`).
+
+Also bump the pinned version in the README and wiki examples (`uses: hbenali/logscrub@X.Y.Z`, pre-commit `rev:`) and verify the release's artifacts: `gh attestation verify FILE --repo hbenali/logscrub`.

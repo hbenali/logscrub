@@ -116,6 +116,21 @@ jobs:
       - name: The dirty run really failed
         shell: bash
         run: test "${{ steps.dirty.outcome }}" = failure
+      - name: SARIF output is written (needs 1.1.0 or later)
+        id: sarif
+        continue-on-error: true
+        uses: ./
+        with:
+          version: 1.1.0
+          files: ${{ runner.temp }}/dirty.log
+          sarif-file: ${{ runner.temp }}/logscrub.sarif
+      - name: The run failed (a secret is present) and the SARIF file holds a finding but not the secret
+        shell: bash
+        run: |
+          test "${{ steps.sarif.outcome }}" = failure
+          grep -q '"version": "2.1.0"' "$RUNNER_TEMP/logscrub.sarif"
+          grep -q '"ruleId": "kv-secret"' "$RUNNER_TEMP/logscrub.sarif"
+          ! grep -q hunter2 "$RUNNER_TEMP/logscrub.sarif"
       - name: Asking for no files is an error, not a hang
         id: nofiles
         continue-on-error: true

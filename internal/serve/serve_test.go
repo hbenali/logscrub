@@ -662,3 +662,19 @@ func TestFormControlsHaveAccessibleNames(t *testing.T) {
 		}
 	}
 }
+
+func TestDisplayAddrIsOpenable(t *testing.T) {
+	for in, want := range map[string]string{
+		"[::]:8080":          "localhost:8080",
+		"0.0.0.0:80":         "localhost:80",
+		"127.0.0.1:8080":     "127.0.0.1:8080",
+		"[::1]:9":            "[::1]:9",
+		"[2001:db8::1]:9000": "[2001:db8::1]:9000",
+		"192.0.2.7:8080":     "192.0.2.7:8080",
+		"not an address":     "not an address",
+	} {
+		if got := displayAddr(in); got != want {
+			t.Errorf("displayAddr(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

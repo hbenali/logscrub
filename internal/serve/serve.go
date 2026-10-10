@@ -121,12 +121,13 @@ func Run(ctx context.Context, o Options, logw io.Writer) error {
 		MaxHeaderBytes:    16 << 10,
 		ErrorLog:          log.New(logw, "logscrub: ", 0),
 	}
-	if _, err := fmt.Fprintf(logw, "logscrub: web UI on http://%s (text is processed in memory by this process and goes nowhere else)\n", ln.Addr()); err != nil {
+	shown := displayAddr(ln.Addr().String())
+	if _, err := fmt.Fprintf(logw, "logscrub: web UI on http://%s (text is processed in memory by this process and goes nowhere else)\n", shown); err != nil {
 		return err
 	}
 	if o.Token != "" {
 		if o.ShowToken {
-			_, _ = fmt.Fprintf(logw, "logscrub: access token required; open http://%s/#token=%s\n", ln.Addr(), o.Token)
+			_, _ = fmt.Fprintf(logw, "logscrub: access token required; open http://%s/#token=%s\n", shown, o.Token)
 		} else {
 			_, _ = fmt.Fprintln(logw, "logscrub: access token required (it was supplied by you and is not printed)")
 		}
@@ -145,6 +146,19 @@ func Run(ctx context.Context, o Options, logw io.Writer) error {
 		defer cancel()
 		return srv.Shutdown(shutdown)
 	}
+}
+
+// displayAddr turns a listen address into one a person can open: a bind on all
+// interfaces ([::] or 0.0.0.0) is shown as localhost.
+func displayAddr(listen string) string {
+	host, port, err := net.SplitHostPort(listen)
+	if err != nil {
+		return listen
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsUnspecified() {
+		return net.JoinHostPort("localhost", port)
+	}
+	return listen
 }
 
 func isLoopbackHost(host string) bool {

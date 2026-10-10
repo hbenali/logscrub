@@ -73,7 +73,7 @@ From 1.0, the command-line flags, exit codes, the config file format and the `[R
 
 ## Install
 
-Binaries and `.deb` / `.rpm` / `.apk` packages on [Releases](https://github.com/hbenali/logscrub/releases) (checksummed and attested: `gh attestation verify FILE --repo hbenali/logscrub`); `docker run --rm -i hbenali/logscrub < app.log` (also `ghcr.io/hbenali/logscrub`); or `go install github.com/hbenali/logscrub/cmd/logscrub@latest`.
+`brew install hbenali/tap/logscrub`; binaries and `.deb` / `.rpm` / `.apk` packages on [Releases](https://github.com/hbenali/logscrub/releases) (checksummed and attested: `gh attestation verify FILE --repo hbenali/logscrub`); `docker run --rm -i hbenali/logscrub < app.log` (also `ghcr.io/hbenali/logscrub`); or `go install github.com/hbenali/logscrub/cmd/logscrub@latest`.
 
 ## Limits
 

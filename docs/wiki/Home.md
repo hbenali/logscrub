@@ -9,6 +9,7 @@ Mask secrets and personal data in logs
 | I want to… | Page |
 | --- | --- |
 | Install it | [Installation](Installation) |
+| See what it detects | [Detectors](Detectors) |
 | Configure rules, allow-lists, pseudonyms | [Configuration](Configuration) |
 | Use the browser UI | [Web UI](Web-UI) |
 | Fix a problem | [Troubleshooting](Troubleshooting) |

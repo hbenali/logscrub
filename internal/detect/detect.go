@@ -62,17 +62,37 @@ func All() []*Detector {
 		gitlabToken(),
 		slackToken(),
 		stripeKey(),
+		dockerHubToken(),
+		anthropicKey(),
+		openAIKey(),
+		googleAPIKey(),
+		npmToken(),
+		pypiToken(),
+		sendgridKey(),
+		huggingFaceToken(),
+		shopifyToken(),
+		digitalOceanToken(),
+		vaultToken(),
+		ageKey(),
+		telegramBotToken(),
+		azureStorageKey(),
 		jwt(),
 		privateKey(),
 		urlCredentials(),
 		bearerToken(),
 		awsSecretKey(),
+		cookie(),
 		kvSecret(),
 		email(),
 		ipv4(),
 		ipv6(),
 		creditCard(),
+		iban(),
+		homePath(),
 		phone(),
+		usSSN(),
+		macAddress(),
+		highEntropy(),
 	}
 }
 
@@ -227,7 +247,7 @@ func awsSecretKey() *Detector {
 
 // kvKey matches a name that ends in a secret-ish word. Requiring the word at
 // the end avoids max_tokens=100, token_count=3 and similar counters.
-const kvKey = `[A-Za-z0-9_.-]*(?:password|passwd|passphrase|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key)`
+const kvKey = `[A-Za-z0-9_.-]*(?:password|passwd|passphrase|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key|credentials?|session[_-]?id)`
 
 // kvValue matches a double-quoted (with escapes), single-quoted or bare value.
 const kvValue = `(?:"((?:[^"\\]|\\.)+)"|'([^']+)'|([^\s"',;&)\]}]+))`
@@ -236,7 +256,7 @@ func kvSecret() *Detector {
 	return &Detector{
 		ID:        "kv-secret",
 		Desc:      "value of password=, token=, api_key=, \"secret\": ... style pairs",
-		Hints:     []string{"password", "passwd", "passphrase", "secret", "token", "key"},
+		Hints:     []string{"password", "passwd", "passphrase", "secret", "token", "key", "credential", "session"},
 		FoldHints: true,
 		Patterns: []*regexp.Regexp{
 			// name=value anywhere; "name": value (JSON, quoted YAML);

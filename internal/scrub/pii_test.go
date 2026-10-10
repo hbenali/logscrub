@@ -70,6 +70,8 @@ func TestOptionalPhone(t *testing.T) {
 
 var tagRe = regexp.MustCompile(`\[(email|ipv4|ipv6):[a-z2-7]{8}\]`)
 
+func regexpFind(s, pattern string) []string { return regexp.MustCompile(pattern).FindAllString(s, -1) }
+
 func runKey(t *testing.T, key, in string) string {
 	t.Helper()
 	out, _ := run(t, scrub.Options{Key: []byte(key)}, in)

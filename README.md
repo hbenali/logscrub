@@ -26,7 +26,7 @@ connect postgres://[REDACTED:url-credentials]@db/x
 
 **Personal data:** email addresses, IPv4 and IPv6 addresses (loopback is left alone), payment card numbers (Luhn-checked, known issuer prefixes), and, if you enable it, international phone numbers.
 
-`logscrub --list-detectors` lists them. Version strings (`Chrome/126.0.0.0`), timestamps, MAC addresses, `ssh://git@host` and `icon@2x.png` are guarded by tests so they stay untouched.
+Provider tokens (Docker Hub, Anthropic, OpenAI, Google, npm, PyPI, SendGrid, Hugging Face and more), cookies and session ids, IBANs, and user names in home-directory paths are covered too; the full list with what each one finds is on the [Detectors](https://github.com/hbenali/logscrub/wiki/Detectors) page, and `logscrub --list-detectors` prints it. SSNs, MAC addresses and a high-entropy catch-all are available as opt-in detectors. Version strings (`Chrome/126.0.0.0`), timestamps, MAC addresses, `ssh://git@host` and `icon@2x.png` are guarded by tests so they stay untouched.
 
 **Pseudonym mode** replaces emails and IPs with `[email:k3x9p2qa]`-style tags derived from an HMAC key, so the same address maps to the same tag across a file and across runs (give `--key-file` or `LOGSCRUB_KEY`). Secrets always get a fixed marker, never a tag. See the [wiki](https://github.com/hbenali/logscrub/wiki/Configuration) for the config file. The roadmap is in [docs/SPEC.md](docs/SPEC.md).
 

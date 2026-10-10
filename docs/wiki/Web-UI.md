@@ -7,7 +7,13 @@ logscrub serve                          # http://127.0.0.1:8080
 logscrub serve --addr 127.0.0.1:9000 --config logscrub.toml --key-file key.txt
 ```
 
+![The logscrub web UI with a pasted log and every match highlighted by detector](https://raw.githubusercontent.com/hbenali/logscrub/main/docs/screenshots/web-ui.png)
+
 Paste a log or drop a file onto the text box. The page shows the text with every match highlighted (hover a highlight to see the detector and its replacement), a count per detector, and the cleaned text. Use the checkboxes to turn detectors on or off, choose fixed markers or stable tags for emails and IPs, and download or copy the cleaned text. `--config` and `--key-file` work as in the CLI (see [Configuration](Configuration)); the config's allow-list and custom rules apply, and its enable/disable lists set the initial checkboxes.
+
+In pseudonym mode the cleaned text keeps the log debuggable: the same address always gets the same tag, while secrets keep fixed markers (dark theme shown; the page follows your system setting).
+
+![The cleaned text in pseudonym mode, with tags such as [email:ggyjbrrk] and [ipv4:znrrpfi2]](https://raw.githubusercontent.com/hbenali/logscrub/main/docs/screenshots/web-ui-pseudonyms.png)
 
 ## What it does with your text
 

@@ -30,7 +30,16 @@ connect postgres://[REDACTED:url-credentials]@db/x
 
 ## Web UI
 
+![The logscrub web UI: a log pasted on the left, every match highlighted by detector in the result below](docs/screenshots/web-ui.png)
+
 `logscrub serve` opens a local page (default `http://127.0.0.1:8080`): paste or drop a log, see every match highlighted by detector, toggle detectors, switch between markers and stable tags, and download the cleaned text. It uses the same engine as the CLI. The text is processed in memory by the local process; the page loads nothing from anywhere else (strict CSP, no CDN, no analytics). It listens on loopback only unless you pass `--allow-remote`, because it has no authentication. See the [wiki](https://github.com/hbenali/logscrub/wiki/Web-UI).
+
+<details>
+<summary>Stable tags for emails and IPs, dark theme</summary>
+
+![The cleaned text with stable tags such as [email:ggyjbrrk] and [ipv4:znrrpfi2]; secrets keep fixed markers](docs/screenshots/web-ui-pseudonyms.png)
+
+</details>
 
 ## Why another one
 

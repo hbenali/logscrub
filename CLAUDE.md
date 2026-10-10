@@ -16,10 +16,11 @@ Run the tests, linter and type/vet checks before committing; CI runs them on eve
 
 ## Layout
 
-- `cmd/logscrub/main.go`: flags, exit codes, wiring only.
+- `cmd/logscrub/main.go`: flags, exit codes, wiring only (detector selection, pseudonym key handling).
+- `internal/config/`: strict TOML rules file (enable/disable, allow-list, custom RE2 rules).
 - `internal/detect/`: the detectors (RE2 patterns + validators). Adding one means positives, negatives and a clean-corpus check.
 - `internal/scrub/`: the streaming engine (line reader, windowing for huge lines, overlap resolution, private-key blocks).
-- `testdata/clean/`: the **must-not-change corpus**; `docs/SPEC.md`: the spec and milestones (M1 done: CLI core).
+- `testdata/clean/`: the **must-not-change corpus**; `docs/SPEC.md`: the spec and milestones (M1 CLI core and M2 pseudonyms/config/PII/prefilter done; M4 web UI next).
 
 ## Conventions and gotchas
 
@@ -27,7 +28,9 @@ Run the tests, linter and type/vet checks before committing; CI runs them on eve
 - **Window cuts use the whole regexp match, not the masked group.** Cutting between `password=` and its value left a value no pattern recognises (a real leak, found by the offset sweep test).
 - **A line that can't be scanned is an error (exit 3), never passed through.** Error messages must not quote input.
 - **Detectors need a false-positive trap in `testdata/clean/`** (`max_tokens=100`, `ssh://git@host`, `refresh token: refused`). Keys must *end* in the secret word; `name: value` only on YAML-looking lines.
-- **Throughput is ~3-4 MB/s** (Go regexp, 11 patterns per line). A keyword prefilter is the planned fix (M2).
+- **Throughput is ~10 MB/s** thanks to the per-detector prefilter (`Hints`/`Pre`). Every detector should declare hints; `TestPrefilterDoesNotChangeOutput` and the fuzz target compare output with and without the prefilter, so a wrong hint fails CI. Hints for case-insensitive patterns must be lowercase.
+- **RE2 has no lookaround:** use a `Check` hook for "not part of a longer token" instead of consuming boundary characters in the regexp (that breaks adjacent matches).
+- **Pseudonym mode:** only detectors with `Pseudonym: true` get HMAC tags; secrets keep fixed markers (a stable tag on a secret is a fingerprint). Keys come from a file or `LOGSCRUB_KEY`, never argv.
 - Commit with `GIT_CONFIG_GLOBAL=$HOME/.gitconfigp`, no trailers.
 - **Security tests fail without the fix.** Every auth/injection/resource-limit fix ships with a regression test that was seen failing first.
 - **Verify behaviour end to end, not just in unit tests.** Several real bugs here (an auth bypass, inverted flag defaults, an error message split across chunks) passed the unit tests; they surfaced only when running the real binary/server and a browser.

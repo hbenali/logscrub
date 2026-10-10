@@ -28,6 +28,25 @@ type Detector struct {
 	// Validate, if set, is called with the text that would be masked and may
 	// reject it.
 	Validate func(secret []byte) bool
+	// Check, if set, sees the whole line and the span that would be masked, for
+	// context RE2 cannot express (no lookaround): "not part of a longer number".
+	Check func(line []byte, start, end int) bool
+
+	// Optional marks a detector that is off unless enabled explicitly.
+	Optional bool
+	// Pseudonym detectors get stable HMAC tags in pseudonym mode instead of a
+	// fixed marker. Canonical, if set, normalises the text before hashing so
+	// that equal values (Bob@X.org and bob@x.org) share a tag.
+	Pseudonym bool
+	Canonical func(secret []byte) []byte
+
+	// Prefilter: the detector only runs on lines that contain one of Hints
+	// (matched case-insensitively when FoldHints is set) and for which Pre, if
+	// set, returns true. It is purely an optimisation: it must never exclude a
+	// line the patterns could match (a test checks that).
+	Hints     []string
+	FoldHints bool
+	Pre       func(line []byte) bool
 }
 
 // Marker returns the replacement text for this detector.
@@ -49,7 +68,24 @@ func All() []*Detector {
 		bearerToken(),
 		awsSecretKey(),
 		kvSecret(),
+		email(),
+		ipv4(),
+		ipv6(),
+		creditCard(),
+		phone(),
 	}
+}
+
+// Defaults returns the detectors that are on unless disabled (everything not
+// marked Optional).
+func Defaults() []*Detector {
+	var out []*Detector
+	for _, d := range All() {
+		if !d.Optional {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 // ByID looks up a built-in detector.
@@ -64,8 +100,9 @@ func ByID(id string) *Detector {
 
 func awsAccessKey() *Detector {
 	return &Detector{
-		ID:   "aws-access-key",
-		Desc: "AWS access key id (AKIA/ASIA/... + 16 characters)",
+		ID:    "aws-access-key",
+		Desc:  "AWS access key id (AKIA/ASIA/... + 16 characters)",
+		Hints: []string{"AKIA", "ASIA", "AGPA", "AIDA", "AROA", "AIPA", "ANPA", "ANVA", "ABIA", "ACCA"},
 		Patterns: []*regexp.Regexp{
 			regexp.MustCompile(`\b(?:AKIA|ASIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ABIA|ACCA)[A-Z0-9]{16}\b`),
 		},
@@ -74,8 +111,9 @@ func awsAccessKey() *Detector {
 
 func githubToken() *Detector {
 	return &Detector{
-		ID:   "github-token",
-		Desc: "GitHub token (ghp_, gho_, ghu_, ghs_, ghr_, github_pat_)",
+		ID:    "github-token",
+		Desc:  "GitHub token (ghp_, gho_, ghu_, ghs_, ghr_, github_pat_)",
+		Hints: []string{"ghp_", "gho_", "ghu_", "ghs_", "ghr_", "github_pat_"},
 		Patterns: []*regexp.Regexp{
 			regexp.MustCompile(`\b(?:gh[pousr]_[A-Za-z0-9]{36,255}|github_pat_[A-Za-z0-9_]{50,255})\b`),
 		},
@@ -84,8 +122,9 @@ func githubToken() *Detector {
 
 func gitlabToken() *Detector {
 	return &Detector{
-		ID:   "gitlab-token",
-		Desc: "GitLab personal access token (glpat-)",
+		ID:    "gitlab-token",
+		Desc:  "GitLab personal access token (glpat-)",
+		Hints: []string{"glpat-"},
 		Patterns: []*regexp.Regexp{
 			regexp.MustCompile(`\bglpat-[A-Za-z0-9_-]{20,}`),
 		},
@@ -94,8 +133,9 @@ func gitlabToken() *Detector {
 
 func slackToken() *Detector {
 	return &Detector{
-		ID:   "slack-token",
-		Desc: "Slack token (xox?-) or incoming webhook URL",
+		ID:    "slack-token",
+		Desc:  "Slack token (xox?-) or incoming webhook URL",
+		Hints: []string{"xox", "hooks.slack.com"},
 		Patterns: []*regexp.Regexp{
 			regexp.MustCompile(`\bxox[abprs]-[A-Za-z0-9-]{10,}`),
 			regexp.MustCompile(`https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[A-Za-z0-9]+`),
@@ -105,8 +145,9 @@ func slackToken() *Detector {
 
 func stripeKey() *Detector {
 	return &Detector{
-		ID:   "stripe-key",
-		Desc: "Stripe live key (sk_live_, rk_live_, pk_live_)",
+		ID:    "stripe-key",
+		Desc:  "Stripe live key (sk_live_, rk_live_, pk_live_)",
+		Hints: []string{"_live_"},
 		Patterns: []*regexp.Regexp{
 			regexp.MustCompile(`\b(?:sk|rk|pk)_live_[A-Za-z0-9]{16,}`),
 		},
@@ -115,8 +156,9 @@ func stripeKey() *Detector {
 
 func jwt() *Detector {
 	return &Detector{
-		ID:   "jwt",
-		Desc: "JSON Web Token (header must decode to JSON)",
+		ID:    "jwt",
+		Desc:  "JSON Web Token (header must decode to JSON)",
+		Hints: []string{"eyJ"},
 		Patterns: []*regexp.Regexp{
 			regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]*`),
 		},
@@ -133,8 +175,9 @@ var (
 
 func privateKey() *Detector {
 	return &Detector{
-		ID:   "private-key",
-		Desc: "PEM private key block (may span lines)",
+		ID:    "private-key",
+		Desc:  "PEM private key block (may span lines)",
+		Hints: []string{"PRIVATE KEY"},
 		Patterns: []*regexp.Regexp{
 			// Complete block on one line (for example JSON with escaped newlines).
 			regexp.MustCompile(`-----BEGIN [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----.*?-----END [A-Z0-9 ]*PRIVATE KEY(?: BLOCK)?-----`),
@@ -144,8 +187,9 @@ func privateKey() *Detector {
 
 func urlCredentials() *Detector {
 	return &Detector{
-		ID:   "url-credentials",
-		Desc: "user:password in a URL (scheme://user:pass@host)",
+		ID:    "url-credentials",
+		Desc:  "user:password in a URL (scheme://user:pass@host)",
+		Hints: []string{"://"},
 		Patterns: []*regexp.Regexp{
 			regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.-]*://([^\s/?#@:]+:[^\s/?#@]+)@`),
 		},
@@ -155,8 +199,10 @@ func urlCredentials() *Detector {
 
 func bearerToken() *Detector {
 	return &Detector{
-		ID:   "bearer-token",
-		Desc: "credential in an Authorization header, or a long Bearer token",
+		ID:        "bearer-token",
+		Desc:      "credential in an Authorization header, or a long Bearer token",
+		Hints:     []string{"bearer", "authorization"},
+		FoldHints: true,
 		Patterns: []*regexp.Regexp{
 			regexp.MustCompile(`(?i)authorization["']?\s*[:=]\s*["']?(?:bearer|basic|token|negotiate)\s+([^\s"',;]+)`),
 			regexp.MustCompile(`\b[Bb]earer\s+([A-Za-z0-9._~+/-]{20,}=*)`),
@@ -167,8 +213,10 @@ func bearerToken() *Detector {
 
 func awsSecretKey() *Detector {
 	return &Detector{
-		ID:   "aws-secret-key",
-		Desc: "40-character AWS secret key after an aws_secret_access_key style name",
+		ID:        "aws-secret-key",
+		Desc:      "40-character AWS secret key after an aws_secret_access_key style name",
+		Hints:     []string{"aws"},
+		FoldHints: true,
 		Patterns: []*regexp.Regexp{
 			regexp.MustCompile(`(?i)aws[_-]?secret[_-]?(?:access[_-]?)?key["']?\s*[:=]\s*["']?([A-Za-z0-9/+=]{40,})`),
 		},
@@ -186,8 +234,10 @@ const kvValue = `(?:"((?:[^"\\]|\\.)+)"|'([^']+)'|([^\s"',;&)\]}]+))`
 
 func kvSecret() *Detector {
 	return &Detector{
-		ID:   "kv-secret",
-		Desc: "value of password=, token=, api_key=, \"secret\": ... style pairs",
+		ID:        "kv-secret",
+		Desc:      "value of password=, token=, api_key=, \"secret\": ... style pairs",
+		Hints:     []string{"password", "passwd", "passphrase", "secret", "token", "key"},
+		FoldHints: true,
 		Patterns: []*regexp.Regexp{
 			// name=value anywhere; "name": value (JSON, quoted YAML);
 			// name: value only on a YAML-looking line, so prose such as

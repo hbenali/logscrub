@@ -1,6 +1,6 @@
 # logscrub: specification (MVP, v0.1)
 
-Status: M1 (CLI core) implemented; later milestones are planned.
+Status: M1 (CLI core) and M2 (pseudonyms, config, PII detectors, prefilter) implemented; the web UI (M4) is planned.
 
 ## 1. Purpose and positioning
 
@@ -161,9 +161,12 @@ testdata/clean|dirty/
 3. **M3:** first signed tag and release (after debugging the Go workflows on a throwaway repo), Docker image.
 4. **M4:** web UI.
 
-## 13. Open questions
+## 13. Decisions made in M2 (and what is still open)
 
-- TOML dependency vs in-repo parser.
-- Default handling of private/loopback IPs (mask all, or allow-list by default)?
-- Whether to add JSON-aware masking by key name (`"token": ...` is covered by `kv-secret`; deeper structure handling deferred).
-- Frontail integration: a "sanitized download" would shell out to the binary or call `serve`; decide after M2.
+- **TOML:** `github.com/BurntSushi/toml` (pure Go, no dependencies), decoded strictly. A hand-written parser for the subset was judged riskier than one small, well-known dependency.
+- **IPs:** all addresses are masked except loopback and unspecified (`127.0.0.1`, `::1`, `0.0.0.0`, `::`), which carry no information. Private ranges are masked (they reveal topology); use `[[allow]]` to keep specific ones.
+- **Context checks:** RE2 has no lookaround, so detectors may carry a `Check(line, start, end)` hook (not part of a longer number, not `Chrome/126.0.0.0`, not `ssh://git@host`).
+- **Prefilter:** detectors declare literal `Hints` (and an optional `Pre` func); a line is only run through a detector's regexps if a hint occurs. A test asserts the prefilter never changes output, including Unicode case folding.
+- **Off by default:** `phone` (E.164 only). Enable with `--enable phone` or in the config.
+- **Order of precedence for enable/disable:** built-in defaults, then the config file, then command-line flags.
+- Still open: JSON-aware masking by key name beyond `kv-secret`; a plain `name: value` line is only masked on YAML-looking lines; frontail's "sanitized download" (shell out to the binary or call `serve`) is decided with the web UI.

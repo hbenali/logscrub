@@ -105,3 +105,95 @@ func TestUnscannableLineExitsWithIOError(t *testing.T) {
 		t.Errorf("code=%d, input echoed=%v", code, strings.Contains(out+errOut, "S3cr3t"))
 	}
 }
+
+func writeFile(t *testing.T, name, content string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestPseudonymMode(t *testing.T) {
+	keyA := writeFile(t, "a.key", "0123456789abcdef-A\n")
+	keyB := writeFile(t, "b.key", "0123456789abcdef-B\n")
+	in := "bob@example.org 10.1.2.3 bob@example.org\n"
+
+	_, a1, _ := exec(t, in, "--mode", "pseudonym", "--key-file", keyA)
+	_, a2, _ := exec(t, in, "--mode", "pseudonym", "--key-file", keyA)
+	_, b, _ := exec(t, in, "--mode", "pseudonym", "--key-file", keyB)
+	if a1 != a2 || a1 == b {
+		t.Errorf("tags must be stable per key and differ across keys:\n%q\n%q\n%q", a1, a2, b)
+	}
+	if strings.Contains(a1, "bob") || strings.Contains(a1, "10.1.2.3") || strings.Count(a1, "[email:") != 2 {
+		t.Errorf("output = %q", a1)
+	}
+	// No key: random per run, but still stable inside the run.
+	_, r, _ := exec(t, in, "--mode", "pseudonym")
+	f := strings.Fields(r)
+	if len(f) != 3 || f[0] != f[2] {
+		t.Errorf("random-key output = %q", r)
+	}
+}
+
+func TestPseudonymKeySources(t *testing.T) {
+	t.Setenv("LOGSCRUB_KEY", "0123456789abcdef-env")
+	if code, out, _ := exec(t, "bob@example.org\n", "--mode", "pseudonym"); code != exitOK || !strings.HasPrefix(out, "[email:") {
+		t.Errorf("env key: code=%d out=%q", code, out)
+	}
+	short := writeFile(t, "short.key", "tooshort")
+	for _, args := range [][]string{
+		{"--mode", "pseudonym", "--key-file", short},
+		{"--mode", "pseudonym", "--key-file", filepath.Join(t.TempDir(), "nope")},
+		{"--mode", "bogus"},
+		{"--key-file", short}, // a key without pseudonym mode is a mistake
+	} {
+		if code, _, _ := exec(t, "x\n", args...); code != exitUsage {
+			t.Errorf("%v: code=%d, want %d", args, code, exitUsage)
+		}
+	}
+}
+
+func TestConfigFile(t *testing.T) {
+	cfg := writeFile(t, "logscrub.toml", `
+disable = ["email"]
+enable  = ["phone"]
+
+[[allow]]
+exact = ["10.0.0.1"]
+
+[[rule]]
+id    = "ticket-token"
+regex = 'TKT-[A-Z0-9]{8}'
+`)
+	in := "bob@example.org 10.0.0.1 10.0.0.2 +14155550123 TKT-ABCD1234\n"
+	code, out, errOut := exec(t, in, "--config", cfg)
+	want := "bob@example.org 10.0.0.1 [REDACTED:ipv4] [REDACTED:phone] [REDACTED:ticket-token]\n"
+	if code != exitOK || out != want {
+		t.Errorf("code=%d out=%q err=%q", code, out, errOut)
+	}
+	// Command-line flags win over the file.
+	_, out, _ = exec(t, in, "--config", cfg, "--enable", "email", "--disable", "phone")
+	if !strings.Contains(out, "[REDACTED:email]") || !strings.Contains(out, "+14155550123") {
+		t.Errorf("flags should override the config: %q", out)
+	}
+}
+
+func TestBadConfigIsUsageError(t *testing.T) {
+	bad := writeFile(t, "bad.toml", "colour = 'red'\n")
+	code, out, errOut := exec(t, "x\n", "--config", bad)
+	if code != exitUsage || out != "" || !strings.Contains(errOut, "unknown key") {
+		t.Errorf("code=%d out=%q err=%q", code, out, errOut)
+	}
+	if code, _, _ := exec(t, "x\n", "--config", filepath.Join(t.TempDir(), "missing.toml")); code != exitUsage {
+		t.Errorf("missing config: code=%d", code)
+	}
+}
+
+func TestListShowsOptionalDetectors(t *testing.T) {
+	_, out, _ := exec(t, "", "--list-detectors")
+	if !strings.Contains(out, "phone") || !strings.Contains(out, "(off by default)") {
+		t.Errorf("list: %q", out)
+	}
+}

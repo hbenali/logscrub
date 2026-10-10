@@ -1,0 +1,12 @@
+13:55:36 12:30:45.123 timestamps are not IPv6
+interface eth0 hwaddr 00:1a:2b:3c:4d:5e
+remote git@github.com:hbenali/logscrub.git
+clone ssh://git@github.com/hbenali/logscrub.git
+assets icon@2x.png logo@3x.webp
+deps lodash@4.17.21 golang.org/x/net@v0.30.0 image@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+code std::vector<int> Foo::bar() and a::b
+listening on 127.0.0.1:8080 and [::1]:8080 and 0.0.0.0:80
+Chrome/126.0.0.0 version 1.2.3.4 v1.2.3.4 ver=5.6.7.8 1.2.3.4.5 2026.10.10.13
+epoch 1791655406123 order 20261010135536 id 2026101013553600 card-like 4111111111111112
+uuid 3f8a1c2e-9b7d-4e51-8a3c-0d2f6b9e1a44
+local user@localhost and phone-like +14155550123 (phone is opt-in)

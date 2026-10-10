@@ -7,6 +7,7 @@ Mask secrets and personal data in logs
 | I want to… | Page |
 | --- | --- |
 | Install it | [Installation](Installation) |
+| Configure rules, allow-lists, pseudonyms | [Configuration](Configuration) |
 | Fix a problem | [Troubleshooting](Troubleshooting) |
 | Run it safely | [Security](Security) |
 | Contribute or cut a release | [Contributing](Contributing) |

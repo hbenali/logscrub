@@ -30,7 +30,7 @@ var (
 func run(t *testing.T, o scrub.Options, in string) (string, *scrub.Result) {
 	t.Helper()
 	if o.Detectors == nil {
-		o.Detectors = detect.All()
+		o.Detectors = detect.Defaults()
 	}
 	s := scrub.New(o)
 	var out bytes.Buffer
@@ -135,7 +135,7 @@ func TestPrivateKeyBlocks(t *testing.T) {
 	})
 
 	t.Run("block state does not span runs", func(t *testing.T) {
-		s := scrub.New(scrub.Options{Detectors: detect.All()})
+		s := scrub.New(scrub.Options{Detectors: detect.Defaults()})
 		var out bytes.Buffer
 		if err := s.Run(strings.NewReader(pemBegin+"\nMIIEow\n"), &out); err != nil {
 			t.Fatal(err)
@@ -151,7 +151,7 @@ func TestPrivateKeyBlocks(t *testing.T) {
 
 	t.Run("disabled detector leaves keys alone", func(t *testing.T) {
 		var dets []*detect.Detector
-		for _, d := range detect.All() {
+		for _, d := range detect.Defaults() {
 			if d.ID != "private-key" {
 				dets = append(dets, d)
 			}
@@ -260,7 +260,7 @@ func TestChunkingInvariance(t *testing.T) {
 	want := scrubStr(t, in)
 
 	for _, size := range []int{16, 17, 32, 100, 4096} {
-		s := scrub.New(scrub.Options{Detectors: detect.All(), ReadBufferSize: size})
+		s := scrub.New(scrub.Options{Detectors: detect.Defaults(), ReadBufferSize: size})
 		var out bytes.Buffer
 		if err := s.Run(iotest.OneByteReader(strings.NewReader(in)), &out); err != nil {
 			t.Fatal(err)
@@ -302,7 +302,7 @@ func TestUnscannableLineFailsWithoutLeakingInput(t *testing.T) {
 	// refuse rather than emit text it could not scan, and the error must not
 	// quote the input.
 	in := "password=" + strings.Repeat("S3cr3tVal", 1<<17) + "\n"
-	s := scrub.New(scrub.Options{Detectors: detect.All(), MaxLineBytes: 1024})
+	s := scrub.New(scrub.Options{Detectors: detect.Defaults(), MaxLineBytes: 1024})
 	var out bytes.Buffer
 	err := s.Run(strings.NewReader(in), &out)
 	if !errors.Is(err, scrub.ErrLineTooLong) {
@@ -336,6 +336,12 @@ func FuzzScrub(f *testing.F) {
 				return
 			}
 			t.Fatalf("unexpected error: %v", err)
+		}
+		// The prefilter must never change what is masked.
+		o.NoPrefilter = true
+		var plain bytes.Buffer
+		if err := scrub.New(o).Run(bytes.NewReader(in), &plain); err == nil && !bytes.Equal(plain.Bytes(), out.Bytes()) {
+			t.Fatalf("prefilter changed the output")
 		}
 		// No leak after scrub: nothing is left for a second pass to mask.
 		again := scrub.New(scrub.Options{Detectors: detect.All()})

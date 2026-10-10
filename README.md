@@ -7,6 +7,8 @@ some-command | logscrub > clean.log
 logscrub app.log                 # files work too
 logscrub --check app.log         # CI gate: exit 1 if anything would be masked
 logscrub --report app.log        # counts per detector, never the matched text
+logscrub --mode pseudonym app.log          # stable tags for emails and IPs: the log stays debuggable
+logscrub --config logscrub.toml app.log    # allow-list, custom rules, enable/disable detectors
 ```
 
 ```text
@@ -15,9 +17,15 @@ GET /cb?access_token=[REDACTED:kv-secret]
 connect postgres://[REDACTED:url-credentials]@db/x
 ```
 
-## What it masks (v0.1)
+## What it masks
 
-AWS access and secret keys, GitHub / GitLab / Slack / Stripe tokens, JWTs, PEM private keys (including multi-line blocks), `Authorization` headers and long Bearer tokens, `user:password@` in URLs, and `password=` / `token=` / `"api_key": "..."` style pairs. `logscrub --list-detectors` lists them. Emails, IPs, card numbers, stable pseudonyms and a config file are planned (see [docs/SPEC.md](docs/SPEC.md)).
+**Secrets:** AWS access and secret keys, GitHub / GitLab / Slack / Stripe tokens, JWTs, PEM private keys (including multi-line blocks), `Authorization` headers and long Bearer tokens, `user:password@` in URLs, and `password=` / `token=` / `"api_key": "..."` style pairs.
+
+**Personal data:** email addresses, IPv4 and IPv6 addresses (loopback is left alone), payment card numbers (Luhn-checked, known issuer prefixes), and, if you enable it, international phone numbers.
+
+`logscrub --list-detectors` lists them. Version strings (`Chrome/126.0.0.0`), timestamps, MAC addresses, `ssh://git@host` and `icon@2x.png` are guarded by tests so they stay untouched.
+
+**Pseudonym mode** replaces emails and IPs with `[email:k3x9p2qa]`-style tags derived from an HMAC key, so the same address maps to the same tag across a file and across runs (give `--key-file` or `LOGSCRUB_KEY`). Secrets always get a fixed marker, never a tag. See the [wiki](https://github.com/hbenali/logscrub/wiki/Configuration) for the config file. The roadmap is in [docs/SPEC.md](docs/SPEC.md).
 
 ## Why another one
 

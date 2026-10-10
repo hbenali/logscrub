@@ -8,10 +8,14 @@ package scrub
 import (
 	"bufio"
 	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base32"
 	"errors"
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
 	"github.com/hbenali/logscrub/internal/detect"
 )
@@ -34,10 +38,17 @@ type Options struct {
 	MaxLineBytes       int
 	MaxPrivateKeyLines int
 
+	// Key switches pseudonym mode on: detectors marked Pseudonym are replaced
+	// by a stable HMAC-SHA256 tag instead of a fixed marker.
+	Key []byte
+	// Allow, if set, is asked about every candidate; true leaves it unmasked.
+	Allow func(secret []byte) bool
+
 	// Tuning knobs, exposed for tests. Overlap should be at least the longest
 	// secret you expect; matches longer than it may be split at a window edge.
 	ReadBufferSize int
 	Overlap        int
+	NoPrefilter    bool
 }
 
 // Result summarises one run. It holds counts only, never matched text.
@@ -59,6 +70,11 @@ func (r *Result) Total() int {
 type Scrubber struct {
 	dets     []*detect.Detector
 	markers  []string
+	hints    [][][]byte
+	needFold bool
+	key      []byte
+	allow    func([]byte) bool
+	noPre    bool
 	maxLine  int
 	maxPKLns int
 	bufSize  int
@@ -79,12 +95,19 @@ func New(o Options) *Scrubber {
 		maxPKLns: orDefault(o.MaxPrivateKeyLines, DefaultMaxPrivateKeyLines),
 		bufSize:  orDefault(o.ReadBufferSize, defaultReadBuffer),
 	}
+	s.key, s.allow, s.noPre = o.Key, o.Allow, o.NoPrefilter
 	s.overlap = orDefault(o.Overlap, min(defaultOverlap, s.maxLine/4))
 	if s.overlap < 1 {
 		s.overlap = 1
 	}
 	for _, d := range s.dets {
 		s.markers = append(s.markers, d.Marker())
+		var hs [][]byte
+		for _, h := range d.Hints {
+			hs = append(hs, []byte(h))
+		}
+		s.hints = append(s.hints, hs)
+		s.needFold = s.needFold || (d.FoldHints && len(d.Hints) > 0)
 		if d.ID == "private-key" {
 			s.pkEnabled = true
 		}
@@ -140,6 +163,8 @@ func (s *Scrubber) Run(r io.Reader, w io.Writer) error {
 	}
 }
 
+var privateKeyHint = []byte("PRIVATE KEY")
+
 // handleLine processes one complete line (possibly without a final newline).
 func (s *Scrubber) handleLine(line []byte, w *bufio.Writer) error {
 	body, eol := splitEOL(line)
@@ -159,7 +184,10 @@ func (s *Scrubber) handleLine(line []byte, w *bufio.Writer) error {
 		return s.emit(body[loc[1]:], eol, w)
 	}
 
-	if loc := detect.PrivateKeyBegin.FindIndex(body); s.pkEnabled && loc != nil &&
+	if !s.pkEnabled || !bytes.Contains(body, privateKeyHint) {
+		return s.emit(body, eol, w)
+	}
+	if loc := detect.PrivateKeyBegin.FindIndex(body); loc != nil &&
 		!detect.PrivateKeyEnd.Match(body[loc[1]:]) {
 		// A block opens here and does not close on this line: mask from the
 		// BEGIN marker on, and swallow lines until the END marker.
@@ -236,7 +264,14 @@ type match struct {
 // resolved by earlier start, then longer span, then detector priority.
 func (s *Scrubber) findMatches(b []byte) []match {
 	var all []match
+	var lower []byte
+	if s.needFold && !s.noPre {
+		lower = foldLower(b)
+	}
 	for di, d := range s.dets {
+		if !s.noPre && !s.wants(di, b, lower) {
+			continue
+		}
 		for _, re := range d.Patterns {
 			for _, loc := range re.FindAllSubmatchIndex(b, -1) {
 				start, end := spanOf(loc, d.Groups)
@@ -248,6 +283,12 @@ func (s *Scrubber) findMatches(b []byte) []match {
 					continue
 				}
 				if d.Validate != nil && !d.Validate(secret) {
+					continue
+				}
+				if d.Check != nil && !d.Check(b, start, end) {
+					continue
+				}
+				if s.allow != nil && s.allow(secret) {
 					continue
 				}
 				all = append(all, match{start, end, loc[0], di})
@@ -276,6 +317,51 @@ func (s *Scrubber) findMatches(b []byte) []match {
 	return out
 }
 
+// wants is the prefilter: can detector di possibly match this line?
+func (s *Scrubber) wants(di int, b, lower []byte) bool {
+	d := s.dets[di]
+	if hs := s.hints[di]; len(hs) > 0 {
+		hay := b
+		if d.FoldHints {
+			hay = lower
+		}
+		found := false
+		for _, h := range hs {
+			if bytes.Contains(hay, h) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return d.Pre == nil || d.Pre(b)
+}
+
+// foldLower lowercases ASCII and maps the two non-ASCII characters Go's
+// case-insensitive regexps fold onto ASCII letters (U+017F to s, U+212A to k),
+// so a hint test agrees with what a (?i) pattern would match.
+func foldLower(b []byte) []byte {
+	out := make([]byte, 0, len(b))
+	for i := 0; i < len(b); i++ {
+		c := b[i]
+		switch {
+		case c >= 'A' && c <= 'Z':
+			out = append(out, c+'a'-'A')
+		case c == 0xC5 && i+1 < len(b) && b[i+1] == 0xBF:
+			out = append(out, 's')
+			i++
+		case c == 0xE2 && i+2 < len(b) && b[i+1] == 0x84 && b[i+2] == 0xAA:
+			out = append(out, 'k')
+			i += 2
+		default:
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 func spanOf(loc, groups []int) (int, int) {
 	if len(groups) == 0 {
 		return loc[0], loc[1]
@@ -294,7 +380,7 @@ func (s *Scrubber) writeReplaced(b []byte, ms []match, w *bufio.Writer) error {
 		if _, err := w.Write(b[pos:m.start]); err != nil {
 			return err
 		}
-		if _, err := w.WriteString(s.markers[m.det]); err != nil {
+		if _, err := w.WriteString(s.replacement(m.det, b[m.start:m.end])); err != nil {
 			return err
 		}
 		s.count(s.dets[m.det].ID)
@@ -302,6 +388,25 @@ func (s *Scrubber) writeReplaced(b []byte, ms []match, w *bufio.Writer) error {
 	}
 	_, err := w.Write(b[pos:])
 	return err
+}
+
+// replacement is the marker, or in pseudonym mode a stable tag derived from
+// HMAC-SHA256(key, id || 0 || canonical value) for detectors that opt in.
+func (s *Scrubber) replacement(di int, secret []byte) string {
+	d := s.dets[di]
+	if s.key == nil || !d.Pseudonym {
+		return s.markers[di]
+	}
+	canon := secret
+	if d.Canonical != nil {
+		canon = d.Canonical(secret)
+	}
+	mac := hmac.New(sha256.New, s.key)
+	mac.Write([]byte(d.ID))
+	mac.Write([]byte{0})
+	mac.Write(canon)
+	tag := strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(mac.Sum(nil)))[:8]
+	return "[" + d.ID + ":" + tag + "]"
 }
 
 func (s *Scrubber) count(id string) { s.res.Counts[id]++ }

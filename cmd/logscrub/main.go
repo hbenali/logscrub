@@ -4,6 +4,8 @@
 package main
 
 import (
+	"bytes"
+	"crypto/rand"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,6 +14,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hbenali/logscrub/internal/config"
 	"github.com/hbenali/logscrub/internal/detect"
 	"github.com/hbenali/logscrub/internal/scrub"
 )
@@ -42,6 +45,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		list        = fs.Bool("list-detectors", false, "list detector ids and exit")
 		showVersion = fs.Bool("version", false, "print version and exit")
 		maxLine     = fs.Int("max-line-bytes", scrub.DefaultMaxLineBytes, "longest line scanned in one piece")
+		mode        = fs.String("mode", "marker", "marker: [REDACTED:id]; pseudonym: stable tags for emails and IPs")
+		keyFile     = fs.String("key-file", "", "file holding the pseudonym HMAC key (or set LOGSCRUB_KEY); default: random per run")
+		configPath  = fs.String("config", "", "TOML rules file (enable/disable, allow-list, custom rules)")
 	)
 	fs.Usage = func() {
 		outf(stderr, `Usage: logscrub [flags] [file ...]
@@ -66,7 +72,11 @@ Flags:
 	}
 	if *list {
 		for _, d := range detect.All() {
-			outf(stdout, "%-16s %s\n", d.ID, d.Desc)
+			state := ""
+			if d.Optional {
+				state = " (off by default)"
+			}
+			outf(stdout, "%-16s %s%s\n", d.ID, d.Desc, state)
 		}
 		return exitOK
 	}
@@ -75,7 +85,26 @@ Flags:
 		return exitUsage
 	}
 
-	dets, err := selectDetectors(*enable, *disable)
+	var cfg config.Config
+	if *configPath != "" {
+		c, err := config.Load(*configPath)
+		if err != nil {
+			outf(stderr, "logscrub: %v\n", err)
+			return exitUsage
+		}
+		cfg = *c
+	}
+	allow, rules, err := cfg.Compile()
+	if err != nil {
+		outf(stderr, "logscrub: %v\n", err)
+		return exitUsage
+	}
+	dets, err := selectDetectors(rules, cfg.Enable, cfg.Disable, splitList(*enable), splitList(*disable))
+	if err != nil {
+		outf(stderr, "logscrub: %v\n", err)
+		return exitUsage
+	}
+	key, err := pseudonymKey(*mode, *keyFile)
 	if err != nil {
 		outf(stderr, "logscrub: %v\n", err)
 		return exitUsage
@@ -85,7 +114,7 @@ Flags:
 	if *check {
 		out = io.Discard
 	}
-	s := scrub.New(scrub.Options{Detectors: dets, MaxLineBytes: *maxLine})
+	s := scrub.New(scrub.Options{Detectors: dets, MaxLineBytes: *maxLine, Key: key, Allow: allow})
 
 	code := exitOK
 	if err := scrubInputs(s, fs.Args(), stdin, out); err != nil {
@@ -135,26 +164,85 @@ func scrubOne(s *scrub.Scrubber, name string, stdin io.Reader, out io.Writer) er
 	return s.Run(f, out)
 }
 
-func selectDetectors(enable, disable string) ([]*detect.Detector, error) {
-	off := map[string]bool{}
-	for _, id := range splitList(disable) {
-		if detect.ByID(id) == nil {
-			return nil, fmt.Errorf("unknown detector %q (see --list-detectors)", id)
-		}
-		off[id] = true
+// selectDetectors starts from the built-ins that are on by default plus the
+// custom rules, then applies the config's enable/disable lists and finally the
+// command-line ones, so flags win over the file.
+func selectDetectors(rules []*detect.Detector, lists ...[]string) ([]*detect.Detector, error) {
+	all := append(detect.All(), rules...)
+	on := map[string]bool{}
+	for _, d := range all {
+		on[d.ID] = !d.Optional
 	}
-	for _, id := range splitList(enable) {
-		if detect.ByID(id) == nil {
-			return nil, fmt.Errorf("unknown detector %q (see --list-detectors)", id)
+	// lists alternate: config enable, config disable, flag enable, flag disable
+	for i, ids := range lists {
+		for _, id := range ids {
+			if _, known := on[id]; !known {
+				return nil, fmt.Errorf("unknown detector %q (see --list-detectors)", id)
+			}
+			on[id] = i%2 == 0
 		}
 	}
 	var out []*detect.Detector
-	for _, d := range detect.All() {
-		if !off[d.ID] {
+	for _, d := range all {
+		if on[d.ID] {
 			out = append(out, d)
 		}
 	}
 	return out, nil
+}
+
+// pseudonymKey returns the HMAC key for pseudonym mode, nil for marker mode.
+// The key is never taken from argv (it would show up in ps).
+func pseudonymKey(mode, keyFile string) ([]byte, error) {
+	switch mode {
+	case "marker":
+		if keyFile != "" {
+			return nil, errors.New("--key-file only applies to --mode pseudonym")
+		}
+		return nil, nil
+	case "pseudonym":
+	default:
+		return nil, fmt.Errorf("unknown --mode %q (marker or pseudonym)", mode)
+	}
+	var key []byte
+	switch {
+	case keyFile != "":
+		raw, err := readSmallFile(keyFile)
+		if err != nil {
+			return nil, err
+		}
+		key = bytes.TrimRight(raw, "\r\n")
+	case os.Getenv("LOGSCRUB_KEY") != "":
+		key = []byte(os.Getenv("LOGSCRUB_KEY"))
+	default:
+		// No key given: tags are stable within this run only.
+		key = make([]byte, 32)
+		if _, err := rand.Read(key); err != nil {
+			return nil, fmt.Errorf("random key: %w", err)
+		}
+	}
+	if len(key) < minKeyBytes {
+		return nil, fmt.Errorf("the pseudonym key must be at least %d bytes", minKeyBytes)
+	}
+	return key, nil
+}
+
+const minKeyBytes = 16
+
+func readSmallFile(path string) ([]byte, error) {
+	f, err := os.Open(path) //nolint:gosec // the path is the user's --key-file argument
+	if err != nil {
+		return nil, fmt.Errorf("%w", err)
+	}
+	defer func() { _ = f.Close() }()
+	raw, err := io.ReadAll(io.LimitReader(f, 4097))
+	if err != nil {
+		return nil, fmt.Errorf("%w", err)
+	}
+	if len(raw) > 4096 {
+		return nil, errors.New("key file is larger than 4 KiB")
+	}
+	return raw, nil
 }
 
 func splitList(s string) []string {

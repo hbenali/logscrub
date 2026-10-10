@@ -2,6 +2,10 @@
 
 **Standalone binary:** download the archive for your platform from [Releases](https://github.com/hbenali/logscrub/releases) (linux, macOS, windows; amd64 and arm64), verify it against `checksums.txt`, and put `logscrub` on your `PATH`.
 
+**Packages:** each release also ships `.deb`, `.rpm` and `.apk` packages (linux amd64 and arm64) that install the binary, the man page, shell completions and the licence: `sudo dpkg -i logscrub_X.Y.Z_linux_amd64.deb`, `sudo rpm -i logscrub_X.Y.Z_linux_amd64.rpm`, `apk add --allow-untrusted logscrub_X.Y.Z_linux_amd64.apk`.
+
+**Verify a download:** check it against `checksums.txt` (`sha256sum -c --ignore-missing checksums.txt`), and verify the build provenance, which proves the file was built by this repository's release workflow: `gh attestation verify logscrub_X.Y.Z_linux_amd64.tar.gz --repo hbenali/logscrub`. From 1.1.0 every archive and package is attested individually; 1.0.0 attested `checksums.txt` only.
+
 **Docker:** `docker run --rm -i hbenali/logscrub < app.log > clean.log` (Docker Hub; the same image is at `ghcr.io/hbenali/logscrub`)
 
 **From source (Go 1.26+):** `go install github.com/hbenali/logscrub/cmd/logscrub@latest`

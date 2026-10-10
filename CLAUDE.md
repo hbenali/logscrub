@@ -18,6 +18,7 @@ Run the tests, linter and type/vet checks before committing; CI runs them on eve
 
 - `cmd/logscrub/main.go`: flags, exit codes, wiring only (detector selection, pseudonym key handling).
 - `internal/serve/`: the web UI server (`serve.go`) and its embedded page (`web/`). Security checks live in `protect`, `checkOrigin` and `handleScrub`; each has a test that fails without it.
+- `action.yml` (GitHub Action, composite, verifies the release checksum), `.pre-commit-hooks.yaml`, `.goreleaser.yaml` (archives + deb/rpm/apk), `docs/man/logscrub.1`, `cmd/logscrub/completions/`: each has a test or CI job; the tag-only release/docker jobs are exercised on every push by `release-dry-run` and `image-smoke`.
 - `internal/config/`: strict TOML rules file (enable/disable, allow-list, custom RE2 rules).
 - `internal/detect/`: the detectors (RE2 patterns + validators). Adding one means positives, negatives and a clean-corpus check.
 - `internal/scrub/`: the streaming engine (line reader, windowing for huge lines, overlap resolution, private-key blocks).

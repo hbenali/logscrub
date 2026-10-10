@@ -52,13 +52,28 @@ Provider tokens (Docker Hub, Anthropic, OpenAI, Google, npm, PyPI, SendGrid, Hug
 - **No network, no files written, never echoes what it finds.** Reports and errors contain counts and ids only.
 - One static binary, a distroless Docker image, signed releases, and a web UI that cannot phone home.
 
+## In CI and pre-commit
+
+```yaml
+- uses: hbenali/logscrub@1.1.0       # GitHub Action: fails if a file would be masked
+  with: { files: build.log }
+```
+
+```yaml
+- repo: https://github.com/hbenali/logscrub   # pre-commit hook
+  rev: 1.1.0
+  hooks: [{ id: logscrub }]
+```
+
+See [Using it in CI](https://github.com/hbenali/logscrub/wiki/CI) for SARIF / JSON reports and code scanning.
+
 ## Stability
 
 From 1.0, the command-line flags, exit codes, the config file format and the `[REDACTED:id]` / `[kind:tag]` output formats are stable across 1.x. New detectors may be added in minor releases, so a log that was clean before can have new matches; `--check` is the way to notice.
 
 ## Install
 
-Binaries on [Releases](https://github.com/hbenali/logscrub/releases); `docker run --rm -i hbenali/logscrub < app.log` (also `ghcr.io/hbenali/logscrub`); or `go install github.com/hbenali/logscrub/cmd/logscrub@latest`.
+Binaries and `.deb` / `.rpm` / `.apk` packages on [Releases](https://github.com/hbenali/logscrub/releases) (checksummed and attested: `gh attestation verify FILE --repo hbenali/logscrub`); `docker run --rm -i hbenali/logscrub < app.log` (also `ghcr.io/hbenali/logscrub`); or `go install github.com/hbenali/logscrub/cmd/logscrub@latest`.
 
 ## Limits
 

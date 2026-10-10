@@ -20,3 +20,6 @@ coverage/
 .env.*
 *.pem
 *.key
+
+# goreleaser scratch (gzipped man page for packages)
+.build/

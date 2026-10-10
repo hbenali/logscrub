@@ -71,7 +71,9 @@ func TestFilesAndStdinDash(t *testing.T) {
 
 func TestMissingFileErrorHasNoInput(t *testing.T) {
 	code, _, errOut := exec(t, "", filepath.Join(t.TempDir(), "nope.log"))
-	if code != exitIOFail || !strings.Contains(errOut, "no such file") {
+	// The OS wording differs ("no such file" on Unix, "cannot find the file" on
+	// Windows), so check what must hold everywhere: the path is named.
+	if code != exitIOFail || !strings.Contains(errOut, "nope.log") {
 		t.Errorf("code=%d stderr=%q", code, errOut)
 	}
 }

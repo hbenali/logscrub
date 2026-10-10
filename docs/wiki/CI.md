@@ -6,6 +6,37 @@
 logscrub --check build.log || { echo "secrets or personal data in build.log"; exit 1; }
 ```
 
+## GitHub Action
+
+```yaml
+- uses: hbenali/logscrub@1.1.0        # pin an exact release (or a commit SHA)
+  with:
+    files: build.log logs/*.log       # spaces or newlines; globs are expanded
+    args: --config .github/logscrub.toml
+    sarif-file: logscrub.sarif        # optional: also write a SARIF report
+- uses: github/codeql-action/upload-sarif@v4
+  if: always()
+  with:
+    sarif_file: logscrub.sarif
+```
+
+The action downloads the release archive for the runner (Linux, macOS or Windows; amd64 or arm64), **verifies its SHA-256 against the release's `checksums.txt`**, and runs `logscrub --check --report` on the files; the step fails if anything would be masked. `version` selects the release (`latest` by default; pin one for reproducible builds). Inputs reach the script through the environment, never by interpolation, and the version is restricted to a release number, so a workflow input cannot inject commands or change the download URL.
+
+There is deliberately no moving `v1` tag: tags here are immutable and each one publishes a release, so pin an exact version (Dependabot can bump it).
+
+## pre-commit
+
+```yaml
+repos:
+  - repo: https://github.com/hbenali/logscrub
+    rev: 1.1.0
+    hooks:
+      - id: logscrub
+        # args: [--config, .github/logscrub.toml]
+```
+
+pre-commit builds logscrub from source, so Go must be installed. The hook fails the commit if a staged text file would be masked and prints counts per detector, never the text.
+
 ## Reports
 
 `--report` prints counts per detector (never the matched text). `--report-format json` and `sarif` also list where each match is:

@@ -1,0 +1,19 @@
+# pre-commit hook: fail the commit if a staged file contains secrets or
+# personal data. Needs Go on the machine (pre-commit builds logscrub from
+# source with `language: golang`). Use it with:
+#
+#   repos:
+#     - repo: https://github.com/hbenali/logscrub
+#       rev: 1.1.0
+#       hooks:
+#         - id: logscrub
+#
+# To pass flags (for example a committed config), override `args`:
+#   args: [--config, .github/logscrub.toml]
+- id: logscrub
+  name: logscrub (secrets and personal data)
+  description: Fail if a staged file contains secrets or personal data
+  entry: logscrub --check --report
+  language: golang
+  types: [text]
+  pass_filenames: true

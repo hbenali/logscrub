@@ -1,0 +1,87 @@
+name: logscrub
+description: Check files for secrets and personal data; fails if anything would be masked
+author: hbenali
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  files:
+    description: Files to check, separated by spaces or newlines (globs are expanded; no spaces inside a path)
+    required: true
+  version:
+    description: logscrub release to install (a tag such as 1.1.0), or "latest". Pin an exact version for reproducible builds.
+    default: latest
+  args:
+    description: Extra logscrub flags, separated by spaces (for example "--config .github/logscrub.toml")
+    default: ""
+  sarif-file:
+    description: If set, also write a SARIF 2.1.0 report (locations only, never the matched text) to this path, for upload to code scanning. Needs logscrub 1.1.0 or later.
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install logscrub
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        set -eo pipefail
+        case "$RUNNER_OS" in
+          Linux) os=linux; ext=tar.gz ;;
+          macOS) os=darwin; ext=tar.gz ;;
+          Windows) os=windows; ext=zip ;;
+          *) echo "logscrub: unsupported runner OS $RUNNER_OS" >&2; exit 1 ;;
+        esac
+        case "$RUNNER_ARCH" in
+          X64) arch=amd64 ;;
+          ARM64) arch=arm64 ;;
+          *) echo "logscrub: unsupported runner architecture $RUNNER_ARCH" >&2; exit 1 ;;
+        esac
+        version="$INPUT_VERSION"
+        if [ "$version" = latest ]; then
+          url=$(curl -fsSL -o /dev/null -w '%{url_effective}' https://github.com/hbenali/logscrub/releases/latest)
+          version="${url##*/}"
+        fi
+        # The version ends up in a URL and a path: allow only a release number.
+        if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "logscrub: '$version' is not a release number like 1.1.0" >&2
+          exit 1
+        fi
+        dir="$RUNNER_TEMP/logscrub-$version"
+        mkdir -p "$dir"
+        base="https://github.com/hbenali/logscrub/releases/download/$version"
+        archive="logscrub_${version}_${os}_${arch}.${ext}"
+        curl -fsSL -o "$dir/$archive" "$base/$archive"
+        curl -fsSL -o "$dir/checksums.txt" "$base/checksums.txt"
+        (
+          cd "$dir"
+          grep " $archive\$" checksums.txt > check.txt
+          if command -v sha256sum >/dev/null 2>&1; then sha256sum -c check.txt; else shasum -a 256 -c check.txt; fi
+          if [ "$ext" = zip ]; then unzip -q -o "$archive"; else tar -xzf "$archive"; fi
+        )
+        echo "$dir" >> "$GITHUB_PATH"
+        "$dir/logscrub" --version
+
+    - name: Check files
+      shell: bash
+      env:
+        INPUT_FILES: ${{ inputs.files }}
+        INPUT_ARGS: ${{ inputs.args }}
+        INPUT_SARIF: ${{ inputs.sarif-file }}
+      run: |
+        set -eo pipefail
+        # Inputs reach the script through the environment, never by interpolation.
+        files=($INPUT_FILES)
+        args=($INPUT_ARGS)
+        if [ "${#files[@]}" -eq 0 ]; then
+          echo "logscrub: no files given (without files logscrub would wait on standard input)" >&2
+          exit 2
+        fi
+        status=0
+        logscrub --check --report ${args[@]+"${args[@]}"} "${files[@]}" || status=$?
+        if [ -n "$INPUT_SARIF" ]; then
+          logscrub --check --report --report-format sarif ${args[@]+"${args[@]}"} "${files[@]}" > "$INPUT_SARIF" || true
+        fi
+        exit "$status"

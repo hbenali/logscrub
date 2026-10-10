@@ -303,6 +303,9 @@ func TestCompletionSubcommand(t *testing.T) {
 }
 
 func TestCompletionScriptsParse(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell scripts are checked on Unix; Windows path handling differs between shells")
+	}
 	for shell, args := range map[string][]string{"bash": {"-n"}, "zsh": {"-n"}, "fish": {"--no-execute"}} {
 		path, err := osexec.LookPath(shell)
 		if err != nil {
@@ -344,6 +347,9 @@ func TestManPageMentionsEveryFlag(t *testing.T) {
 }
 
 func TestManPageHasNoRoffWarnings(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("groff warnings are checked on Linux (other platforms ship other groff versions)")
+	}
 	groff, err := osexec.LookPath("groff")
 	if err != nil {
 		t.Skip("groff is not installed")

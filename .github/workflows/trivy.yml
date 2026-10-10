@@ -6,9 +6,9 @@ name: Trivy
 # `exit-code` to '1' on a scan step to fail the build on findings.
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
   schedule:
     # Weekly, so newly published CVEs are caught even without new commits.
     - cron: '23 4 * * 1'

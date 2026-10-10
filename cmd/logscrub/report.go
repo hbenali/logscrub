@@ -65,9 +65,9 @@ func printTextReport(w io.Writer, res *scrub.Result) {
 	}
 	sort.Strings(ids)
 	for _, id := range ids {
-		outf(w, "%-16s %d\n", id, res.Counts[id])
+		outf(w, "%-20s %d\n", id, res.Counts[id])
 	}
-	outf(w, "%-16s %d\n", "total", res.Total())
+	outf(w, "%-20s %d\n", "total", res.Total())
 }
 
 func printJSONReport(w io.Writer, res *scrub.Result, c *collector) {

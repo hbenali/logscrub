@@ -172,3 +172,16 @@ testdata/clean|dirty/
 - **Frontail "sanitized download":** out of scope for logscrub, which must not depend on frontail. The integration is on frontail's side: pipe the log through `logscrub` (stdin to stdout) or call `logscrub serve`'s `POST /api/scrub`.
 - **Known limitations, not planned for 1.0:** JSON-aware masking by key name beyond `kv-secret`; a plain `name: value` line is only masked on YAML-looking lines (prose such as `failed to refresh token: refused` is deliberately left alone); a private key block longer than `--max-private-key-lines` is only masked up to that limit (and reported).
 - **Deviation from section 10:** the must-change corpus is a table of Go tests (secrets assembled from string pieces so scanners do not flag the repository) instead of golden files.
+
+## 14. Additions after 1.0 (1.1)
+
+Everything in sections 1-13 is the 1.0 specification. 1.1 adds, without changing any 1.0 flag, exit code or output format:
+
+- **Detectors** (`docs/wiki/Detectors.md`, kept complete by a test): Docker Hub, Anthropic, OpenAI, Google, npm, PyPI, SendGrid, Hugging Face, Shopify, DigitalOcean, Vault, age, Telegram and Azure storage keys; `Cookie`/`Set-Cookie` values; `session_id` and `credentials` key names; IBANs; user names in home-directory paths (role accounts such as `runner` are left alone). Opt-in: `us-ssn`, `mac-address`, `high-entropy`. New default-on detectors can mask text that 1.0 left alone; `--disable ID` restores the old behaviour.
+- **Reports:** `--report-format json|sarif` with file, line, column and byte range, never the matched text. The engine's `Span` carries `Line`, `Column` and `EndLine`.
+- **`--output/-o`:** atomic, mode 0600, refuses to overwrite a file being read.
+- **Config:** a per-user file (`$XDG_CONFIG_HOME/logscrub/config.toml`) is read unless it is world-writable or `--no-config` is given. A config in the current directory is deliberately never read: an allow-list in an untrusted checkout could make logscrub leak what it was asked to mask.
+- **Web UI:** `--allow-remote` requires an access token (generated and printed in a URL fragment, or `--token-file` / `LOGSCRUB_TOKEN`), compared in constant time; keyboard-operable tabs; an axe-core audit with zero violations.
+- **Distribution:** `logscrub completion bash|zsh|fish`, a man page, `.deb`/`.rpm`/`.apk` packages, a composite GitHub Action that verifies the release checksum, a pre-commit hook, and attestation of every archive and package.
+
+Considered and not done: auto-discovering a project-level config (security, above); a moving `v1` tag for the Action (tags here are immutable and each publishes a release); in-place editing (`-o` plus atomic rename covers the safe cases).

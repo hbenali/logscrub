@@ -33,7 +33,7 @@ This is a volunteer-maintained project; there is no bug bounty.
 
 ## Scope
 
-In scope: logscrub itself, its Docker image and its release artifacts. Typical findings: input that makes logscrub **emit a secret it should have masked** for a documented detector (a bypass), echo or log input text (including in errors or reports), consume unbounded CPU or memory (ReDoS is excluded by design: RE2), or, once the web UI exists, cross-origin or injection attacks against it. Secrets with no recognisable shape are a documented limitation, not a vulnerability.
+In scope: logscrub itself, its Docker image and its release artifacts. Typical findings (in logscrub, the web UI, `action.yml`, the packages and the release artifacts): input that makes logscrub **emit a secret it should have masked** for a documented detector (a bypass), echo or log input text (including in errors or reports), consume unbounded CPU or memory (ReDoS is excluded by design: RE2), or cross-origin, injection or authentication attacks against the web UI (including its access token), or a way to make the GitHub Action run unintended commands or install an unverified binary. Secrets with no recognisable shape are a documented limitation, not a vulnerability.
 
 Out of scope: issues that require an already-compromised host; missing hardening with no concrete impact; vulnerabilities in third-party dependencies with no demonstrated impact on logscrub (report those upstream; Dependabot and Trivy track them here).
 

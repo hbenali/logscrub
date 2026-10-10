@@ -89,7 +89,7 @@ Flags:
 			if d.Optional {
 				state = " (off by default)"
 			}
-			outf(stdout, "%-16s %s%s\n", d.ID, d.Desc, state)
+			outf(stdout, "%-20s %s%s\n", d.ID, d.Desc, state)
 		}
 		return exitOK
 	}

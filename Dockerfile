@@ -21,4 +21,6 @@ LABEL org.opencontainers.image.title="logscrub" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}"
 COPY --from=build /out/logscrub /logscrub
+# already the default of the :nonroot base; stated so scanners (Trivy DS-0002) see it
+USER 65532:65532
 ENTRYPOINT ["/logscrub"]

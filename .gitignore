@@ -1,0 +1,22 @@
+# dependencies and build output
+node_modules/
+vendor/
+dist/
+bin/*
+!bin/logscrub
+*.exe
+coverage/
+*.out
+*.test
+
+# editors, OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# local secrets and keys: never commit these
+.env
+.env.*
+*.pem
+*.key

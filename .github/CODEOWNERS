@@ -1,0 +1,7 @@
+# Default owner: requested for review on every pull request.
+*                    @hbenali
+
+# Security-sensitive paths (add the project's auth, parsing and input-handling code here)
+/.github/            @hbenali
+/SECURITY.md         @hbenali
+/Dockerfile*         @hbenali

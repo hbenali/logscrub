@@ -1,0 +1,5 @@
+- - [10/Oct/2026:13:55:36 +0000] "GET /index.html HTTP/1.1" 200 2326 "-" "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+- - [10/Oct/2026:13:55:37 +0000] "GET /static/app.3f2a9c1b.js?v=1.2.3 HTTP/1.1" 304 0 "https://example.com/index.html" "curl/8.5.0"
+- - [10/Oct/2026:13:55:38 +0000] "POST /api/v1/orders?max_tokens=100&token_count=3 HTTP/2.0" 201 512 "-" "python-requests/2.32.0"
+- - [10/Oct/2026:13:55:39 +0000] "GET /health HTTP/1.1" 200 2 "-" "kube-probe/1.30"
+upstream timed out (110: Connection timed out) while reading response header from upstream, upstream: "http://backend:8080/api"

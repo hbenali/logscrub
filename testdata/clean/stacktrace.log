@@ -1,0 +1,15 @@
+Exception in thread "main" java.lang.IllegalStateException: token store unavailable
+	at com.example.auth.TokenService.refreshToken(TokenService.java:142)
+	at com.example.auth.PasswordEncoder.matches(PasswordEncoder.java:58)
+	at com.example.web.LoginController.login(LoginController.java:31)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+Caused by: java.net.ConnectException: Connection refused (Connection refused)
+Traceback (most recent call last):
+  File "/app/auth/session.py", line 88, in verify_token
+    raise ValueError("invalid token format")
+ValueError: invalid token format
+panic: runtime error: index out of range [3] with length 3
+
+goroutine 1 [running]:
+main.parseSecretKey(0xc000012345, 0x20)
+	/src/main.go:57 +0x1d4

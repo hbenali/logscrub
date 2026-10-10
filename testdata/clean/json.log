@@ -1,0 +1,5 @@
+{"ts":"2026-10-10T13:55:36Z","level":"info","msg":"request","method":"GET","path":"/v1/items","status":200,"duration_ms":12,"request_id":"3f8a1c2e-9b7d-4e51-8a3c-0d2f6b9e1a44"}
+{"ts":"2026-10-10T13:55:37Z","level":"info","msg":"llm call","model":"claude-sonnet-5-5","max_tokens":1024,"tokens_used":512,"input_tokens":40,"output_tokens":472}
+{"ts":"2026-10-10T13:55:38Z","level":"warn","msg":"token expired","token":null,"secret":false,"password":""}
+{"ts":"2026-10-10T13:55:39Z","level":"debug","msg":"commit","sha":"9fceb02d0ae598e95dc970b74767f19372d61af7","digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}
+{"ts":"2026-10-10T13:55:40Z","level":"info","msg":"config","secret_name":"prod-db","token_ttl":3600,"password_policy":"strong","jwt_alg":"RS256"}

@@ -1,0 +1,7 @@
+Oct 10 13:55:36 web01 systemd[1]: Started Daily apt download activities.
+Oct 10 13:55:37 web01 sshd[1423]: Accepted publickey for deploy from port 52114 ssh2: ED25519 SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
+Oct 10 13:55:38 web01 sudo: pam_unix(sudo:session): session opened for user root(uid=0) by (uid=1000)
+Oct 10 13:55:39 web01 kernel: [12345.678901] Out of memory: Killed process 4242 (java) total-vm:8123456kB
+Oct 10 13:55:40 web01 app[991]: refresh token: connection refused
+Oct 10 13:55:41 web01 app[991]: failed to read secret: file not found
+Oct 10 13:55:42 web01 cron[77]: (root) CMD (cd / && PWD=/root run-parts /etc/cron.hourly)

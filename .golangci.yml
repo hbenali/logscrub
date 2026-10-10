@@ -1,0 +1,16 @@
+# UNTESTED SKETCH (golangci-lint v2 format).
+version: "2"
+
+linters:
+  default: standard   # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - gosec           # security issues
+    - bodyclose
+    - errorlint
+    - misspell
+    - revive
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

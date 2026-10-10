@@ -1,0 +1,73 @@
+name: Bug report
+description: Something doesn't work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please check the [Troubleshooting page](https://github.com/hbenali/logscrub/wiki/Troubleshooting) first.
+
+        **Security problem?** Don't file it here, see [SECURITY.md](https://github.com/hbenali/logscrub/security/policy).
+  - type: input
+    id: version
+    attributes:
+      label: logscrub version
+      description: Output of `logscrub --version`, or the Docker image tag.
+      placeholder: "1.2.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How do you run it?
+      options:
+        - Package manager (npm, go install, brew, ...)
+        - Docker / Compose
+        - Kubernetes
+        - Standalone binary
+        - From source
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS and Node version
+      description: For example "Fedora 44, Node 22.12", or "Alpine (Docker image)".
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command line or config
+      description: The exact command, or the `--config` file. **Remove passwords and other secrets.**
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Server output and browser console
+      description: Anything logscrub printed, error messages, and logs that show the problem. Remove private data.
+      render: text
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: "Anything else that helps: environment, screenshots, a minimal reproduction."
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I read the Troubleshooting page and searched existing issues.
+          required: true
+        - label: I removed passwords, tokens and private data from everything above.
+          required: true

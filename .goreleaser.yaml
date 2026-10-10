@@ -1,0 +1,38 @@
+# UNTESTED SKETCH: check with `goreleaser check` and `goreleaser release --snapshot --clean`.
+version: 2
+
+project_name: logscrub
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: ./cmd/logscrub
+    binary: logscrub
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}}
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: github
+
+# Releases are immutable once published: create a DRAFT with the assets
+# attached, then publish it by hand after writing the notes
+# (gh release edit <tag> --notes-file notes.md --draft=false).
+release:
+  draft: true

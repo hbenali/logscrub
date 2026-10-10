@@ -1,0 +1,14 @@
+> app@1.4.2 build
+> webpack --mode production
+asset main.8d3f1a2b4c.js 214 KiB [emitted] [minimized] (name: main)
+Version: webpack 5.95.0 | commit 4f2b8e1 | build id 20261010.4
+sha256 0f4c1d2e9a7b3c5d6e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d
+Pulling from library/golang: 1.26.8-alpine
+ssh://git@github.com/hbenali/logscrub.git
+http://localhost:8080/path/to/resource
+postgres://db.internal:5432/app?sslmode=require
+00000000: 4865 6c6c 6f20 776f 726c 6421 0a00 0000  Hello world!....
+Authorization: Bearer [REDACTED:bearer-token]
+password=[REDACTED:kv-secret]
+version: 10.20.30.40 released
+kind: Secret

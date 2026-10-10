@@ -32,6 +32,7 @@ func runServe(ctx context.Context, args []string, stderr io.Writer) int {
 		keyFile     = fs.String("key-file", "", "file holding the pseudonym HMAC key (or set LOGSCRUB_KEY); default: random per run")
 		maxBody     = fs.Int64("max-body-bytes", serve.DefaultMaxBodyBytes, "largest text accepted")
 		maxLine     = fs.Int("max-line-bytes", scrub.DefaultMaxLineBytes, "longest line scanned in one piece")
+		maxKeyLines = fs.Int("max-private-key-lines", scrub.DefaultMaxPrivateKeyLines, "longest private key block masked line by line")
 	)
 	fs.Usage = func() {
 		outf(stderr, "Usage: logscrub serve [flags]\n\nA local web UI: paste or drop a log, see what would be masked, download the cleaned text.\nText is processed in memory and never stored or sent anywhere else.\n\nFlags:\n")
@@ -47,8 +48,8 @@ func runServe(ctx context.Context, args []string, stderr io.Writer) int {
 		outf(stderr, "logscrub serve: unexpected argument %q\n", fs.Arg(0))
 		return exitUsage
 	}
-	if *maxLine < 1024 || *maxBody < 1024 {
-		outf(stderr, "logscrub serve: --max-line-bytes and --max-body-bytes must be at least 1024\n")
+	if *maxLine < 1024 || *maxBody < 1024 || *maxKeyLines < 1 {
+		outf(stderr, "logscrub serve: --max-line-bytes and --max-body-bytes must be at least 1024, --max-private-key-lines at least 1\n")
 		return exitUsage
 	}
 
@@ -82,7 +83,7 @@ func runServe(ctx context.Context, args []string, stderr io.Writer) int {
 	}
 
 	err = serve.Run(ctx, serve.Options{
-		Addr: *addr, AllowRemote: *allowRemote, MaxBodyBytes: *maxBody, MaxLineBytes: *maxLine,
+		Addr: *addr, AllowRemote: *allowRemote, MaxBodyBytes: *maxBody, MaxLineBytes: *maxLine, MaxPrivateKeyLines: *maxKeyLines,
 		Detectors: append(detect.All(), rules...), DefaultOn: defaultOn,
 		Allow: allow, Key: key, Version: orUnknown(version),
 	}, stderr)

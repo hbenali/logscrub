@@ -8,4 +8,6 @@
 
 **`logscrub: scrub: line too long to scan safely` (exit 3).** One line was far longer than `--max-line-bytes` (default 1 MiB) and could not be scanned in bounded memory, so nothing from it was written. Raise `--max-line-bytes` or split the line.
 
+**`warning: private key block longer than 200 lines: the rest of it is not masked`.** A `-----BEGIN ... PRIVATE KEY-----` block never closed (or is unusually long), so logscrub masked up to the limit and stopped. Raise `--max-private-key-lines` if the block is genuine, and check the text after the marker.
+
 **Exit codes:** 0 ok, 1 `--check` found something, 2 usage error, 3 read or scan error.

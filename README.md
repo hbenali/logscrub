@@ -51,9 +51,13 @@ connect postgres://[REDACTED:url-credentials]@db/x
 - **No network, no files written, never echoes what it finds.** Reports and errors contain counts and ids only.
 - One static binary, a distroless Docker image, signed releases, and a web UI that cannot phone home.
 
+## Stability
+
+From 1.0, the command-line flags, exit codes, the config file format and the `[REDACTED:id]` / `[kind:tag]` output formats are stable across 1.x. New detectors may be added in minor releases, so a log that was clean before can have new matches; `--check` is the way to notice.
+
 ## Install
 
-Binaries on [Releases](https://github.com/hbenali/logscrub/releases); `docker run --rm -i ghcr.io/hbenali/logscrub < app.log`; or `go install github.com/hbenali/logscrub/cmd/logscrub@latest`.
+Binaries on [Releases](https://github.com/hbenali/logscrub/releases); `docker run --rm -i hbenali/logscrub < app.log` (also `ghcr.io/hbenali/logscrub`); or `go install github.com/hbenali/logscrub/cmd/logscrub@latest`.
 
 ## Limits
 

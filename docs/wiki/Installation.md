@@ -2,7 +2,7 @@
 
 **Standalone binary:** download the archive for your platform from [Releases](https://github.com/hbenali/logscrub/releases) (linux, macOS, windows; amd64 and arm64), verify it against `checksums.txt`, and put `logscrub` on your `PATH`.
 
-**Docker:** `docker run --rm -i ghcr.io/hbenali/logscrub < app.log > clean.log`
+**Docker:** `docker run --rm -i hbenali/logscrub < app.log > clean.log` (Docker Hub; the same image is at `ghcr.io/hbenali/logscrub`)
 
 **From source (Go 1.26+):** `go install github.com/hbenali/logscrub/cmd/logscrub@latest`
 

@@ -226,3 +226,25 @@ func TestServeHelp(t *testing.T) {
 		t.Errorf("code=%d stderr=%q", code, errOut)
 	}
 }
+
+func TestMaxPrivateKeyLines(t *testing.T) {
+	begin, end := "-----BEGIN "+"RSA PRIVATE KEY-----", "-----END "+"RSA PRIVATE KEY-----"
+	in := begin + "\n" + strings.Repeat("MIIEow\n", 10) + end + "\n"
+
+	// With a small limit the block is cut off, reported, and the rest passes
+	// through: that is the documented trade-off, and it must not be silent.
+	code, out, errOut := exec(t, in, "--max-private-key-lines", "3")
+	if code != exitOK || !strings.HasPrefix(out, "[REDACTED:private-key]") || !strings.Contains(errOut, "private key block longer than 3 lines") {
+		t.Errorf("limit 3: code=%d out=%q stderr=%q", code, out, errOut)
+	}
+	// With the default the whole block is masked and nothing is reported.
+	code, out, errOut = exec(t, in)
+	if code != exitOK || out != "[REDACTED:private-key]\n" || errOut != "" {
+		t.Errorf("default: code=%d out=%q stderr=%q", code, out, errOut)
+	}
+	for _, args := range [][]string{{"--max-private-key-lines", "0"}, {"serve", "--max-private-key-lines", "0"}} {
+		if code, _, _ := exec(t, "", args...); code != exitUsage {
+			t.Errorf("%v: code=%d, want %d", args, code, exitUsage)
+		}
+	}
+}

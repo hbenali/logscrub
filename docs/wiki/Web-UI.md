@@ -28,12 +28,12 @@ A server on your machine can be reached by every web page you visit, so it defen
 - **Loopback only by default.** Other addresses are refused unless you pass `--allow-remote`, and then there is still no authentication: put it behind something that has some, or don't.
 - **Host check** (against DNS rebinding): requests whose `Host` header is not the address it listens on (or `localhost`) get 403.
 - **Origin and Content-Type check** (against cross-site requests): the scrub endpoint only accepts JSON posted from the page itself.
-- **Limits:** 10 MiB of text per request (`--max-body-bytes`), four requests at a time (a fifth gets 503), and timeouts. A line that cannot be scanned in bounded memory is refused (422), never passed through.
+- **Limits:** 10 MiB of text per request (`--max-body-bytes`; `--max-line-bytes` and `--max-private-key-lines` work as in the CLI), four requests at a time (a fifth gets 503), and timeouts. A line that cannot be scanned in bounded memory is refused (422), never passed through.
 
 **In Docker** the server must listen on all container interfaces, so publish the port on the host's loopback only:
 
 ```sh
-docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/hbenali/logscrub serve --addr 0.0.0.0:8080 --allow-remote
+docker run --rm -p 127.0.0.1:8080:8080 hbenali/logscrub serve --addr 0.0.0.0:8080 --allow-remote
 ```
 
 Browser extensions can read page text. The log box opts out of common grammar checkers, but an extension that ignores that can still send what you paste to its own servers; use a profile without such extensions for sensitive logs.

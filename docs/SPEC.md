@@ -1,6 +1,6 @@
 # logscrub: specification (MVP, v0.1)
 
-Status: M1 (CLI core) and M2 (pseudonyms, config, PII detectors, prefilter) and M4 (web UI) implemented.
+Status: all milestones (M1 CLI core, M2 pseudonyms/config/PII/prefilter, M3 releases, M4 web UI) are implemented; this is the 1.0 specification.
 
 ## 1. Purpose and positioning
 
@@ -169,4 +169,6 @@ testdata/clean|dirty/
 - **Prefilter:** detectors declare literal `Hints` (and an optional `Pre` func); a line is only run through a detector's regexps if a hint occurs. A test asserts the prefilter never changes output, including Unicode case folding.
 - **Off by default:** `phone` (E.164 only). Enable with `--enable phone` or in the config.
 - **Order of precedence for enable/disable:** built-in defaults, then the config file, then command-line flags.
-- Still open: JSON-aware masking by key name beyond `kv-secret`; a plain `name: value` line is only masked on YAML-looking lines; frontail's "sanitized download" (shell out to the binary or call `serve`) is decided with the web UI.
+- **Frontail "sanitized download":** out of scope for logscrub, which must not depend on frontail. The integration is on frontail's side: pipe the log through `logscrub` (stdin to stdout) or call `logscrub serve`'s `POST /api/scrub`.
+- **Known limitations, not planned for 1.0:** JSON-aware masking by key name beyond `kv-secret`; a plain `name: value` line is only masked on YAML-looking lines (prose such as `failed to refresh token: refused` is deliberately left alone); a private key block longer than `--max-private-key-lines` is only masked up to that limit (and reported).
+- **Deviation from section 10:** the must-change corpus is a table of Go tests (secrets assembled from string pieces so scanners do not flag the repository) instead of golden files.

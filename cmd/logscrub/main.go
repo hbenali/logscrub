@@ -48,6 +48,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		list        = fs.Bool("list-detectors", false, "list detector ids and exit")
 		showVersion = fs.Bool("version", false, "print version and exit")
 		maxLine     = fs.Int("max-line-bytes", scrub.DefaultMaxLineBytes, "longest line scanned in one piece")
+		maxKeyLines = fs.Int("max-private-key-lines", scrub.DefaultMaxPrivateKeyLines, "longest private key block masked line by line")
 		mode        = fs.String("mode", "marker", "marker: [REDACTED:id]; pseudonym: stable tags for emails and IPs")
 		keyFile     = fs.String("key-file", "", "file holding the pseudonym HMAC key (or set LOGSCRUB_KEY); default: random per run")
 		configPath  = fs.String("config", "", "TOML rules file (enable/disable, allow-list, custom rules)")
@@ -88,6 +89,10 @@ Flags:
 		outf(stderr, "logscrub: --max-line-bytes must be at least 1024\n")
 		return exitUsage
 	}
+	if *maxKeyLines < 1 {
+		outf(stderr, "logscrub: --max-private-key-lines must be at least 1\n")
+		return exitUsage
+	}
 
 	var cfg config.Config
 	if *configPath != "" {
@@ -118,7 +123,7 @@ Flags:
 	if *check {
 		out = io.Discard
 	}
-	s := scrub.New(scrub.Options{Detectors: dets, MaxLineBytes: *maxLine, Key: key, Allow: allow})
+	s := scrub.New(scrub.Options{Detectors: dets, MaxLineBytes: *maxLine, MaxPrivateKeyLines: *maxKeyLines, Key: key, Allow: allow})
 
 	code := exitOK
 	if err := scrubInputs(s, fs.Args(), stdin, out); err != nil {

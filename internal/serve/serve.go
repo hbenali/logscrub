@@ -49,7 +49,10 @@ type Options struct {
 	AllowRemote  bool
 	MaxBodyBytes int64
 	MaxLineBytes int
-	Concurrency  int
+	// MaxPrivateKeyLines bounds how many lines of an unterminated private key
+	// block are masked (the scrub package default when zero).
+	MaxPrivateKeyLines int
+	Concurrency        int
 
 	// Detectors are all the detectors the UI may offer (built-ins and custom
 	// rules); DefaultOn lists the ids that start checked.
@@ -360,7 +363,7 @@ func (s *server) handleScrub(w http.ResponseWriter, r *http.Request) {
 	var spans []spanOut
 	truncated := false
 	sc := scrub.New(scrub.Options{
-		Detectors: dets, MaxLineBytes: s.o.MaxLineBytes, Key: key, Allow: s.o.Allow,
+		Detectors: dets, MaxLineBytes: s.o.MaxLineBytes, MaxPrivateKeyLines: s.o.MaxPrivateKeyLines, Key: key, Allow: s.o.Allow,
 		Observe: func(sp scrub.Span) {
 			if len(spans) >= maxSpans {
 				truncated = true

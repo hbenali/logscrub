@@ -59,3 +59,9 @@ footer { color: var(--muted); padding-bottom: 24px; }
   main { grid-template-columns: minmax(0, 1fr); grid-template-areas: "in" "opt" "out"; }
   .detectors { max-height: none; }
 }
+
+.tokenform { max-width: 1168px; margin: 16px auto 0; }
+.tokenform p { margin: 6px 0; }
+.tokenform .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.tokenform label { font-weight: 600; }
+.tokenform input { flex: 1 1 260px; font: 14px var(--mono); color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; }

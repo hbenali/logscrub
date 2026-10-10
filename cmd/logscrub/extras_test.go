@@ -1,14 +1,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
 	"os"
 	osexec "os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 const secretValue = "hunter2-S3CRET"
@@ -348,4 +352,98 @@ func TestManPageHasNoRoffWarnings(t *testing.T) {
 	if b, err := cmd.CombinedOutput(); err != nil || len(strings.TrimSpace(string(b))) != 0 {
 		t.Errorf("groff: %v\n%s", err, b)
 	}
+}
+
+// ---- serve access token ----
+
+func TestServeToken(t *testing.T) {
+	t.Setenv("LOGSCRUB_TOKEN", "")
+	file := writeFile(t, "token.txt", "abcdef0123456789-token\n")
+	short := writeFile(t, "short.txt", "short\n")
+
+	if tok, gen, err := serveToken(false, ""); tok != "" || gen || err != nil {
+		t.Errorf("loopback, none: %q %v %v", tok, gen, err)
+	}
+	tok, gen, err := serveToken(true, "")
+	if err != nil || !gen || !regexp.MustCompile(`^[0-9a-f]{32}$`).MatchString(tok) {
+		t.Errorf("--allow-remote should generate a 128-bit token: %q %v %v", tok, gen, err)
+	}
+	if tok2, _, _ := serveToken(true, ""); tok2 == tok {
+		t.Error("generated tokens repeat")
+	}
+	if tok, gen, err := serveToken(true, file); tok != "abcdef0123456789-token" || gen || err != nil {
+		t.Errorf("file: %q %v %v", tok, gen, err)
+	}
+	t.Setenv("LOGSCRUB_TOKEN", "0123456789abcdef-env")
+	if tok, gen, err := serveToken(false, ""); tok != "0123456789abcdef-env" || gen || err != nil {
+		t.Errorf("env: %q %v %v", tok, gen, err)
+	}
+	if _, _, err := serveToken(false, short); err == nil {
+		t.Error("a short token was accepted")
+	}
+}
+
+// A real server started through the CLI with --allow-remote: the printed URL
+// carries a working token, and the API refuses requests without it.
+func TestServeAllowRemoteRequiresAndPrintsAToken(t *testing.T) {
+	t.Setenv("LOGSCRUB_TOKEN", "")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var log lockedBuffer
+	done := make(chan int, 1)
+	go func() {
+		done <- runServe(ctx, []string{"--addr", "127.0.0.1:0", "--allow-remote", "--no-config"}, &log)
+	}()
+
+	var base, token string
+	for i := 0; i < 300 && token == ""; i++ {
+		if m := regexp.MustCompile(`open (http://\S+?)/#token=([0-9a-f]{32})`).FindStringSubmatch(log.String()); m != nil {
+			base, token = m[1], m[2]
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if token == "" {
+		t.Fatalf("no token URL in the start-up output: %q", log.String())
+	}
+	get := func(auth string) int {
+		req, _ := http.NewRequest(http.MethodGet, base+"/api/detectors", nil)
+		if auth != "" {
+			req.Header.Set("Authorization", auth)
+		}
+		resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+	if code := get(""); code != http.StatusUnauthorized {
+		t.Errorf("without the token: %d", code)
+	}
+	if code := get("Bearer " + token); code != http.StatusOK {
+		t.Errorf("with the printed token: %d", code)
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("server did not stop")
+	}
+}
+
+type lockedBuffer struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (l *lockedBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *lockedBuffer) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
 }

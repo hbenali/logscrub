@@ -25,7 +25,8 @@ complete -c logscrub -n '__fish_use_subcommand' -F
 
 # serve
 complete -c logscrub -n '__fish_seen_subcommand_from serve' -l addr -x -d 'address to listen on'
-complete -c logscrub -n '__fish_seen_subcommand_from serve' -l allow-remote -d 'allow a non-loopback address (no authentication)'
+complete -c logscrub -n '__fish_seen_subcommand_from serve' -l allow-remote -d 'allow a non-loopback address (an access token is then required)'
+complete -c logscrub -n '__fish_seen_subcommand_from serve' -l token-file -r -d 'file holding the API access token'
 complete -c logscrub -n '__fish_seen_subcommand_from serve' -l config -r -d 'TOML rules file'
 complete -c logscrub -n '__fish_seen_subcommand_from serve' -l no-config -d 'do not read the per-user config file'
 complete -c logscrub -n '__fish_seen_subcommand_from serve' -l key-file -r -d 'pseudonym HMAC key file'

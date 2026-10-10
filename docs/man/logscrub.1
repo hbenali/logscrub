@@ -71,7 +71,10 @@ starts a local web UI (default http://127.0.0.1:8080): paste or drop a log, see 
 Address to listen on (default 127.0.0.1:8080).
 .TP
 .B \-\-allow\-remote
-Allow a non-loopback address. The UI has no authentication, so this is a deliberate act.
+Allow a non-loopback address. An access token is then required: unless you supply one (\fB\-\-token\-file\fR or \fBLOGSCRUB_TOKEN\fR), logscrub generates one and prints a URL carrying it in the fragment (\fB#token=...\fR), which browsers never send to a server. The API compares it in constant time. Plain HTTP is not encrypted: use an SSH tunnel or a TLS reverse proxy.
+.TP
+.BI \-\-token\-file " FILE"
+File holding an access token (at least 16 characters) that the API requires as \fBAuthorization: Bearer\fR. Optional on loopback; the page asks for it when needed.
 .TP
 .BI \-\-config " FILE"
 TOML rules file, as above.
@@ -114,6 +117,9 @@ Per-user config, read when it exists and is not world-writable (on Linux \fI~/.c
 .TP
 .B LOGSCRUB_KEY
 Pseudonym HMAC key, used when \fB\-\-key\-file\fR is not given.
+.TP
+.B LOGSCRUB_TOKEN
+Access token for \fBlogscrub serve\fR, used when \fB\-\-token\-file\fR is not given.
 .SH EXAMPLES
 .nf
 some-command | logscrub > clean.log

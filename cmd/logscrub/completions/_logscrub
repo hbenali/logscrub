@@ -8,7 +8,8 @@ _logscrub() {
   if [[ ${words[2]} == serve ]]; then
     _arguments \
       '--addr[address to listen on (loopback by default)]:address:' \
-      '--allow-remote[allow a non-loopback address (no authentication)]' \
+      '--allow-remote[allow a non-loopback address (an access token is then required)]' \
+      '--token-file[file holding the API access token]:file:_files' \
       '--config[TOML rules file]:file:_files' \
       '--no-config[do not read the per-user config file]' \
       '--key-file[file holding the pseudonym HMAC key]:file:_files' \

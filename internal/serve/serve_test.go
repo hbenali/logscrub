@@ -511,3 +511,154 @@ func (s *syncBuffer) String() string {
 	defer s.mu.Unlock()
 	return s.b.String()
 }
+
+// ---- access token ----
+
+const accessToken = "0123456789abcdef-access"
+
+func tokenHandler() http.Handler {
+	o := newOptions()
+	o.Token = accessToken
+	return handler(o)
+}
+
+func withBearer(r *http.Request, value string) *http.Request {
+	if value != "" {
+		r.Header.Set("Authorization", value)
+	}
+	return r
+}
+
+func TestTokenIsRequiredForTheAPIOnly(t *testing.T) {
+	h := tokenHandler()
+	bad := map[string]string{
+		"missing":         "",
+		"wrong":           "Bearer wrong-token-value-1234",
+		"prefix only":     "Bearer " + accessToken[:10],
+		"longer":          "Bearer " + accessToken + "x",
+		"lower-case word": "bearer " + accessToken,
+		"basic scheme":    "Basic " + accessToken,
+		"no scheme":       accessToken,
+		"empty token":     "Bearer ",
+	}
+	for name, auth := range bad {
+		for _, mk := range []func() *http.Request{
+			func() *http.Request { return get("/api/detectors", testHost) },
+			func() *http.Request { return post(`{"text":"password=hunter2"}`) },
+		} {
+			r := withBearer(mk(), auth)
+			w := do(h, r)
+			if w.Code != http.StatusUnauthorized || w.Header().Get("WWW-Authenticate") == "" {
+				t.Errorf("%s: %s %s -> %d, want 401 with WWW-Authenticate", name, r.Method, r.URL.Path, w.Code)
+			}
+			if strings.Contains(w.Body.String(), accessToken) || strings.Contains(w.Body.String(), "hunter2") {
+				t.Errorf("%s: the 401 body leaks something: %s", name, w.Body.String())
+			}
+		}
+	}
+	ok := "Bearer " + accessToken
+	if w := do(h, withBearer(get("/api/detectors", testHost), ok)); w.Code != http.StatusOK {
+		t.Errorf("detectors with the token: %d", w.Code)
+	}
+	if res := decode(t, do(h, withBearer(post(`{"text":"password=hunter2"}`), ok))); strings.Contains(res.Output, "hunter2") {
+		t.Errorf("scrub with the token did not scrub: %q", res.Output)
+	}
+	// The page itself holds nothing sensitive and must load so it can ask for the token.
+	for _, path := range []string{"/", "/app.js", "/style.css"} {
+		if w := do(h, get(path, testHost)); w.Code != http.StatusOK {
+			t.Errorf("%s without a token: %d, want 200", path, w.Code)
+		}
+	}
+}
+
+func TestTokenDoesNotWeakenOtherChecks(t *testing.T) {
+	h := tokenHandler()
+	ok := "Bearer " + accessToken
+	r := withBearer(post(`{"text":"x"}`), ok)
+	r.Header.Set("Origin", "http://evil.example")
+	if w := do(h, r); w.Code != http.StatusForbidden {
+		t.Errorf("a valid token must not bypass the Origin check: %d", w.Code)
+	}
+	r = withBearer(get("/api/detectors", "evil.example"), ok)
+	if w := do(h, r); w.Code != http.StatusForbidden {
+		t.Errorf("a valid token must not bypass the Host check: %d", w.Code)
+	}
+}
+
+func TestNoTokenMeansOpenOnLoopback(t *testing.T) {
+	if w := do(handler(newOptions()), get("/api/detectors", testHost)); w.Code != http.StatusOK {
+		t.Errorf("no token configured: %d", w.Code)
+	}
+}
+
+func TestRunTokenRules(t *testing.T) {
+	short := func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+		defer cancel()
+		return Run(ctx, newOptions().withAddr("127.0.0.1:0").withToken("short"), io.Discard)
+	}
+	if err := short(); err == nil || !strings.Contains(err.Error(), "at least") {
+		t.Errorf("short token: %v", err)
+	}
+	remote := func(o Options) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+		return Run(ctx, o, io.Discard)
+	}
+	noToken := newOptions().withAddr("0.0.0.0:0")
+	noToken.AllowRemote = true
+	if err := remote(noToken); err == nil || !strings.Contains(err.Error(), "access token") {
+		t.Errorf("remote bind without a token must be refused: %v", err)
+	}
+}
+
+func TestStartupMessageAndTokenPrinting(t *testing.T) {
+	runAndRead := func(o Options) string {
+		ctx, cancel := context.WithCancel(context.Background())
+		var log syncBuffer
+		errc := make(chan error, 1)
+		go func() { errc <- Run(ctx, o, &log) }()
+		for i := 0; i < 200 && !strings.Contains(log.String(), "web UI on"); i++ {
+			time.Sleep(10 * time.Millisecond)
+		}
+		cancel()
+		<-errc
+		return log.String()
+	}
+	o := newOptions().withAddr("127.0.0.1:0").withToken(accessToken)
+	o.ShowToken = true
+	if out := runAndRead(o); !strings.Contains(out, "/#token="+accessToken) {
+		t.Errorf("a generated token should be shown in a fragment URL: %q", out)
+	}
+	o.ShowToken = false
+	if out := runAndRead(o); strings.Contains(out, accessToken) || !strings.Contains(out, "access token required") {
+		t.Errorf("a user-supplied token must not be printed: %q", out)
+	}
+}
+
+func (o Options) withToken(t string) Options { o.Token = t; return o }
+
+// Regression guards for what the axe audit found: every form control needs an
+// accessible name, and the token form must be a landmark.
+func TestFormControlsHaveAccessibleNames(t *testing.T) {
+	page := do(handler(newOptions()), get("/", testHost)).Body.String()
+	for _, tc := range []struct{ what, re string }{
+		{"the log textarea is labelled by its heading", `<textarea id="input"[^>]*aria-labelledby="in-h"`},
+		{"the token form is a named landmark", `<form id="tokenform"[^>]*aria-labelledby="token-h"`},
+		{"the token input has a label", `<label for="token">`},
+		{"the tabs form a tablist", `role="tablist"`},
+		{"the status is announced", `role="status"[^>]*aria-live="polite"`},
+		{"errors are announced", `role="alert"`},
+		{"the page language is set", `<html lang="en">`},
+	} {
+		if !regexp.MustCompile(tc.re).MatchString(page) {
+			t.Errorf("%s: no match for %s", tc.what, tc.re)
+		}
+	}
+	js := do(handler(newOptions()), get("/app.js", testHost)).Body.String()
+	for _, key := range []string{"ArrowRight", "ArrowLeft", "Home", "End"} {
+		if !strings.Contains(js, "'"+key+"'") {
+			t.Errorf("the tabs do not handle the %s key", key)
+		}
+	}
+}

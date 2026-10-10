@@ -25,7 +25,8 @@ In pseudonym mode the cleaned text keeps the log debuggable: the same address al
 
 A server on your machine can be reached by every web page you visit, so it defends itself:
 
-- **Loopback only by default.** Other addresses are refused unless you pass `--allow-remote`, and then there is still no authentication: put it behind something that has some, or don't.
+- **Loopback only by default.** Other addresses are refused unless you pass `--allow-remote`. A non-loopback bind **requires an access token**: pass `--token-file FILE` (or `LOGSCRUB_TOKEN`), or let logscrub generate a random 128-bit one and print `http://HOST:PORT/#token=...`. The token is in the URL *fragment*, which browsers never send to a server or put in a Referer header; the page keeps it in memory, removes it from the address bar, and sends it as `Authorization: Bearer ...`. The API compares it in constant time; the page itself (which holds nothing sensitive) loads without it and asks for the token if needed. A token is optional on loopback (`--token-file`).
+- **Plain HTTP.** The token and your text are not encrypted on the network. For anything beyond a trusted LAN use an SSH tunnel (`ssh -L 8080:127.0.0.1:8080 host`, with logscrub on loopback) or a TLS reverse proxy.
 - **Host check** (against DNS rebinding): requests whose `Host` header is not the address it listens on (or `localhost`) get 403.
 - **Origin and Content-Type check** (against cross-site requests): the scrub endpoint only accepts JSON posted from the page itself.
 - **Limits:** 10 MiB of text per request (`--max-body-bytes`; `--max-line-bytes` and `--max-private-key-lines` work as in the CLI), four requests at a time (a fifth gets 503), and timeouts. A line that cannot be scanned in bounded memory is refused (422), never passed through.
@@ -33,7 +34,9 @@ A server on your machine can be reached by every web page you visit, so it defen
 **In Docker** the server must listen on all container interfaces, so publish the port on the host's loopback only:
 
 ```sh
-docker run --rm -p 127.0.0.1:8080:8080 hbenali/logscrub serve --addr 0.0.0.0:8080 --allow-remote
+docker run --rm -p 127.0.0.1:8080:8080 hbenali/logscrub serve --addr 0.0.0.0:8080 --allow-remote   # prints the access token URL
 ```
+
+**Accessibility.** The page is keyboard operable (the result tabs use arrow keys, Home and End), every control has an accessible name, status and errors are announced, and it follows your light or dark setting. It passes an automated axe-core audit with zero violations in light, dark and a narrow mobile layout, and all text meets WCAG AA contrast (4.5:1 or better). Automated checks do not replace testing with a screen reader, which has not been done.
 
 Browser extensions can read page text. The log box opts out of common grammar checkers, but an extension that ignores that can still send what you paste to its own servers; use a profile without such extensions for sensitive logs.

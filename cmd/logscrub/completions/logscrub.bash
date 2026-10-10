@@ -11,7 +11,7 @@ _logscrub() {
     done
 
     local main_flags="--check --report --report-format --enable --disable --list-detectors --version --max-line-bytes --max-private-key-lines --mode --key-file --config --no-config --output -o --help"
-    local serve_flags="--addr --allow-remote --config --no-config --key-file --max-body-bytes --max-line-bytes --max-private-key-lines --help"
+    local serve_flags="--addr --allow-remote --config --no-config --key-file --token-file --max-body-bytes --max-line-bytes --max-private-key-lines --help"
 
     if [[ $sub == completion ]]; then
         COMPREPLY=($(compgen -W "bash zsh fish" -- "$cur"))
@@ -20,7 +20,7 @@ _logscrub() {
     case "$prev" in
         --mode) COMPREPLY=($(compgen -W "marker pseudonym" -- "$cur")); return ;;
         --report-format) COMPREPLY=($(compgen -W "text json sarif" -- "$cur")); return ;;
-        --config | --key-file | --output | -o) COMPREPLY=($(compgen -f -- "$cur")); return ;;
+        --config | --key-file | --token-file | --output | -o) COMPREPLY=($(compgen -f -- "$cur")); return ;;
         --enable | --disable)
             COMPREPLY=($(compgen -W "$(logscrub --list-detectors 2>/dev/null | awk '{print $1}')" -- "$cur"))
             return ;;

@@ -12,6 +12,7 @@ package serve
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -62,7 +63,17 @@ type Options struct {
 	// Key is the HMAC key for pseudonym mode. It stays on the server.
 	Key     []byte
 	Version string
+
+	// Token, if set, must accompany every API request as "Authorization:
+	// Bearer TOKEN". A non-loopback bind requires one (the CLI generates it).
+	// ShowToken makes the start-up message print a URL carrying the token in its
+	// fragment, which browsers never send to a server.
+	Token     string
+	ShowToken bool
 }
+
+// MinTokenBytes is the shortest accepted access token.
+const MinTokenBytes = 16
 
 func (o *Options) fill() {
 	if o.Addr == "" {
@@ -86,7 +97,13 @@ func Run(ctx context.Context, o Options, logw io.Writer) error {
 	}
 	loopback := isLoopbackHost(host)
 	if !loopback && !o.AllowRemote {
-		return fmt.Errorf("serve: %q is not a loopback address and the UI has no authentication; pass --allow-remote if you really mean it", o.Addr)
+		return fmt.Errorf("serve: %q is not a loopback address; pass --allow-remote (an access token is then required)", o.Addr)
+	}
+	if o.Token != "" && len(o.Token) < MinTokenBytes {
+		return fmt.Errorf("serve: the access token must be at least %d characters", MinTokenBytes)
+	}
+	if !loopback && o.Token == "" {
+		return errors.New("serve: a non-loopback address needs an access token")
 	}
 	ln, err := net.Listen("tcp", o.Addr)
 	if err != nil {
@@ -107,8 +124,15 @@ func Run(ctx context.Context, o Options, logw io.Writer) error {
 	if _, err := fmt.Fprintf(logw, "logscrub: web UI on http://%s (text is processed in memory by this process and goes nowhere else)\n", ln.Addr()); err != nil {
 		return err
 	}
+	if o.Token != "" {
+		if o.ShowToken {
+			_, _ = fmt.Fprintf(logw, "logscrub: access token required; open http://%s/#token=%s\n", ln.Addr(), o.Token)
+		} else {
+			_, _ = fmt.Fprintln(logw, "logscrub: access token required (it was supplied by you and is not printed)")
+		}
+	}
 	if !loopback {
-		_, _ = fmt.Fprintln(logw, "logscrub: warning: listening on a non-loopback address; the UI has no authentication")
+		_, _ = fmt.Fprintln(logw, "logscrub: warning: this is plain HTTP, so the token and your text cross the network unencrypted; use an SSH tunnel or a TLS reverse proxy")
 	}
 
 	errc := make(chan error, 1)
@@ -265,9 +289,28 @@ type detectorInfo struct {
 	Default   bool   `json:"default"`
 }
 
+// authorized checks the access token, in constant time. With no token
+// configured everything is allowed (loopback use).
+func (s *server) authorized(r *http.Request) bool {
+	if s.o.Token == "" {
+		return true
+	}
+	got, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	return ok && subtle.ConstantTimeCompare([]byte(got), []byte(s.o.Token)) == 1
+}
+
+func (s *server) denyUnauthorized(w http.ResponseWriter) {
+	w.Header().Set("WWW-Authenticate", "Bearer")
+	writeError(w, http.StatusUnauthorized, "missing or wrong access token")
+}
+
 func (s *server) handleDetectors(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !s.authorized(r) {
+		s.denyUnauthorized(w)
 		return
 	}
 	infos := make([]detectorInfo, 0, len(s.o.Detectors))
@@ -297,6 +340,10 @@ type spanOut struct {
 func (s *server) handleScrub(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if !s.authorized(r) {
+		s.denyUnauthorized(w)
 		return
 	}
 	if msg := s.checkOrigin(r); msg != "" {

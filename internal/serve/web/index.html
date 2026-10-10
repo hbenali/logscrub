@@ -14,6 +14,17 @@
   <p class="privacy">Runs on this machine. Your text is processed in memory by the local logscrub process and is never stored or sent anywhere else.</p>
 </header>
 
+<form id="tokenform" class="panel tokenform" aria-labelledby="token-h" hidden>
+  <h2 id="token-h">Access token needed</h2>
+  <p>This logscrub server requires an access token. Paste the one printed in the terminal where <code>logscrub serve</code> is running.</p>
+  <div class="row">
+    <label for="token">Access token</label>
+    <input id="token" type="password" autocomplete="off" spellcheck="false" required aria-describedby="token-error">
+    <button type="submit" class="btn primary">Continue</button>
+  </div>
+  <p id="token-error" role="alert" class="error" hidden></p>
+</form>
+
 <main>
   <section class="panel" aria-labelledby="in-h">
     <div class="panel-head">
@@ -25,7 +36,7 @@
     </div>
     <textarea id="input" spellcheck="false" autocomplete="off" autocapitalize="off"
       data-gramm="false" data-gramm_editor="false" data-enable-grammarly="false" data-lt-active="false"
-      aria-describedby="status" placeholder="Paste a log here, or drop a file onto this box."></textarea>
+      aria-labelledby="in-h" aria-describedby="status" placeholder="Paste a log here, or drop a file onto this box."></textarea>
   </section>
 
   <aside class="panel options" aria-labelledby="opt-h">

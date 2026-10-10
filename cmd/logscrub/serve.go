@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -32,6 +36,7 @@ func runServe(ctx context.Context, args []string, stderr io.Writer) int {
 		keyFile     = fs.String("key-file", "", "file holding the pseudonym HMAC key (or set LOGSCRUB_KEY); default: random per run")
 		maxBody     = fs.Int64("max-body-bytes", serve.DefaultMaxBodyBytes, "largest text accepted")
 		maxLine     = fs.Int("max-line-bytes", scrub.DefaultMaxLineBytes, "longest line scanned in one piece")
+		tokenFile   = fs.String("token-file", "", "file holding an access token required for the API (or set LOGSCRUB_TOKEN); --allow-remote generates one if none is given")
 		maxKeyLines = fs.Int("max-private-key-lines", scrub.DefaultMaxPrivateKeyLines, "longest private key block masked line by line")
 	)
 	fs.Usage = func() {
@@ -73,6 +78,11 @@ func runServe(ctx context.Context, args []string, stderr io.Writer) int {
 		outf(stderr, "logscrub: %v\n", err)
 		return exitUsage
 	}
+	token, generated, err := serveToken(*allowRemote, *tokenFile)
+	if err != nil {
+		outf(stderr, "logscrub: %v\n", err)
+		return exitUsage
+	}
 	defaultOn := make([]string, len(on))
 	for i, d := range on {
 		defaultOn[i] = d.ID
@@ -81,11 +91,39 @@ func runServe(ctx context.Context, args []string, stderr io.Writer) int {
 	err = serve.Run(ctx, serve.Options{
 		Addr: *addr, AllowRemote: *allowRemote, MaxBodyBytes: *maxBody, MaxLineBytes: *maxLine, MaxPrivateKeyLines: *maxKeyLines,
 		Detectors: append(detect.All(), rules...), DefaultOn: defaultOn,
-		Allow: allow, Key: key, Version: orUnknown(version),
+		Allow: allow, Key: key, Version: orUnknown(version), Token: token, ShowToken: generated,
 	}, stderr)
 	if err != nil {
 		outf(stderr, "logscrub: %v\n", err)
 		return exitIOFail
 	}
 	return exitOK
+}
+
+// serveToken returns the API access token: from --token-file or LOGSCRUB_TOKEN,
+// else a fresh random one when --allow-remote is used (generated is then true),
+// else none (loopback use needs no token).
+func serveToken(allowRemote bool, file string) (token string, generated bool, err error) {
+	switch {
+	case file != "":
+		raw, rerr := readSmallFile(file)
+		if rerr != nil {
+			return "", false, rerr
+		}
+		token = string(bytes.TrimRight(raw, "\r\n"))
+	case os.Getenv("LOGSCRUB_TOKEN") != "":
+		token = os.Getenv("LOGSCRUB_TOKEN")
+	case allowRemote:
+		b := make([]byte, 16)
+		if _, rerr := rand.Read(b); rerr != nil {
+			return "", false, fmt.Errorf("random token: %w", rerr)
+		}
+		return hex.EncodeToString(b), true, nil
+	default:
+		return "", false, nil
+	}
+	if len(token) < serve.MinTokenBytes {
+		return "", false, fmt.Errorf("the access token must be at least %d characters", serve.MinTokenBytes)
+	}
+	return token, false, nil
 }

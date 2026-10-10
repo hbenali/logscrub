@@ -11,10 +11,8 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
 	"strings"
 
-	"github.com/hbenali/logscrub/internal/config"
 	"github.com/hbenali/logscrub/internal/detect"
 	"github.com/hbenali/logscrub/internal/scrub"
 )
@@ -35,8 +33,13 @@ func main() {
 }
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	if len(args) > 0 && args[0] == "serve" {
-		return runServeSignals(args[1:], stderr)
+	if len(args) > 0 {
+		switch args[0] {
+		case "serve":
+			return runServeSignals(args[1:], stderr)
+		case "completion":
+			return runCompletion(args[1:], stdout, stderr)
+		}
 	}
 	fs := flag.NewFlagSet("logscrub", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -52,10 +55,15 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		mode        = fs.String("mode", "marker", "marker: [REDACTED:id]; pseudonym: stable tags for emails and IPs")
 		keyFile     = fs.String("key-file", "", "file holding the pseudonym HMAC key (or set LOGSCRUB_KEY); default: random per run")
 		configPath  = fs.String("config", "", "TOML rules file (enable/disable, allow-list, custom rules)")
+		noConfig    = fs.Bool("no-config", false, "do not read the per-user config file")
+		format      = fs.String("report-format", "text", "format of --report: text, json or sarif (locations only, never the matched text)")
+		output      = fs.String("output", "", "write the cleaned text to this file (atomically, mode 0600) instead of stdout")
 	)
+	fs.StringVar(output, "o", "", "short for --output")
 	fs.Usage = func() {
 		outf(stderr, `Usage: logscrub [flags] [file ...]
        logscrub serve [flags]      (local web UI; see logscrub serve -h)
+       logscrub completion bash|zsh|fish
 
 Reads files (or stdin when none, or "-") and writes the text with secrets masked.
 Pattern matching cannot find every secret: review the output before sharing it.
@@ -94,14 +102,25 @@ Flags:
 		return exitUsage
 	}
 
-	var cfg config.Config
-	if *configPath != "" {
-		c, err := config.Load(*configPath)
-		if err != nil {
-			outf(stderr, "logscrub: %v\n", err)
-			return exitUsage
-		}
-		cfg = *c
+	switch *format {
+	case "text", "json", "sarif":
+	default:
+		outf(stderr, "logscrub: unknown --report-format %q (text, json or sarif)\n", *format)
+		return exitUsage
+	}
+	if *output != "" && *check {
+		outf(stderr, "logscrub: --output and --check cannot be combined (--check writes nothing)\n")
+		return exitUsage
+	}
+	if *format != "text" && !*report {
+		outf(stderr, "logscrub: --report-format needs --report\n")
+		return exitUsage
+	}
+
+	cfg, err := loadConfig(*configPath, *noConfig)
+	if err != nil {
+		outf(stderr, "logscrub: %v\n", err)
+		return exitUsage
 	}
 	allow, rules, err := cfg.Compile()
 	if err != nil {
@@ -120,16 +139,41 @@ Flags:
 	}
 
 	out := io.Writer(stdout)
-	if *check {
+	var target *atomicFile
+	switch {
+	case *check:
 		out = io.Discard
+	case *output != "":
+		target, err = newAtomicFile(*output, fs.Args())
+		if err != nil {
+			outf(stderr, "logscrub: %v\n", err)
+			return exitUsage
+		}
+		out = target
 	}
-	s := scrub.New(scrub.Options{Detectors: dets, MaxLineBytes: *maxLine, MaxPrivateKeyLines: *maxKeyLines, Key: key, Allow: allow})
+
+	col := &collector{}
+	opts := scrub.Options{Detectors: dets, MaxLineBytes: *maxLine, MaxPrivateKeyLines: *maxKeyLines, Key: key, Allow: allow}
+	if *report && *format != "text" {
+		opts.Observe = col.observe
+	}
+	s := scrub.New(opts)
 
 	code := exitOK
-	if err := scrubInputs(s, fs.Args(), stdin, out); err != nil {
+	if err := scrubInputs(s, col, fs.Args(), stdin, out); err != nil {
 		// Messages from the engine and from os never contain input text.
 		outf(stderr, "logscrub: %v\n", err)
 		code = exitIOFail
+	}
+	if target != nil {
+		if code == exitOK {
+			if err := target.Commit(); err != nil {
+				outf(stderr, "logscrub: %v\n", err)
+				code = exitIOFail
+			}
+		} else {
+			target.Abort()
+		}
 	}
 
 	res := s.Result()
@@ -141,7 +185,7 @@ Flags:
 		if *check {
 			dest = stdout
 		}
-		printReport(dest, res)
+		printReport(dest, *format, res, col, dets)
 	}
 	if code == exitOK && *check && res.Total() > 0 {
 		code = exitFound
@@ -149,11 +193,19 @@ Flags:
 	return code
 }
 
-func scrubInputs(s *scrub.Scrubber, files []string, stdin io.Reader, out io.Writer) error {
+// stdinName labels standard input in reports.
+const stdinName = "<stdin>"
+
+func scrubInputs(s *scrub.Scrubber, col *collector, files []string, stdin io.Reader, out io.Writer) error {
 	if len(files) == 0 {
+		col.file = stdinName
 		return s.Run(stdin, out)
 	}
 	for _, name := range files {
+		col.file = name
+		if name == "-" {
+			col.file = stdinName
+		}
 		if err := scrubOne(s, name, stdin, out); err != nil {
 			return err
 		}
@@ -262,18 +314,6 @@ func splitList(s string) []string {
 		}
 	}
 	return out
-}
-
-func printReport(w io.Writer, res *scrub.Result) {
-	ids := make([]string, 0, len(res.Counts))
-	for id := range res.Counts {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	for _, id := range ids {
-		outf(w, "%-16s %d\n", id, res.Counts[id])
-	}
-	outf(w, "%-16s %d\n", "total", res.Total())
 }
 
 // outf writes diagnostics and help; a failed write to a closed pipe is not worth reporting.

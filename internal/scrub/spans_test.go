@@ -98,3 +98,51 @@ func TestPrivateKeyLimitSpanCoversWholeBlock(t *testing.T) {
 		t.Errorf("rebuilt %q (ok=%v), output %q", rebuilt, ok, out)
 	}
 }
+
+func TestSpanLinesAndColumns(t *testing.T) {
+	in := "first line\n" +
+		"ünï bob@example.org here\n" + // 2 multibyte letters before the match: byte column, not character
+		"x " + pemBegin + "\nMIIEow\n" + pemEnd + " y\n" +
+		"last password=hunter2"
+	_, spans, err := scrubWithSpans(scrub.Options{}, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type pos struct{ line, col, endLine int64 }
+	got := map[string]pos{}
+	for _, s := range spans {
+		got[s.Detector] = pos{s.Line, s.Column, s.EndLine}
+		// the reported position must agree with the byte offset
+		line := int64(1)
+		var lineStart int64
+		for i := int64(0); i < s.Start; i++ {
+			if in[i] == '\n' {
+				line++
+				lineStart = i + 1
+			}
+		}
+		if s.Line != line || s.Column != s.Start-lineStart+1 {
+			t.Errorf("%s: Line/Column = %d/%d but offset %d is %d/%d", s.Detector, s.Line, s.Column, s.Start, line, s.Start-lineStart+1)
+		}
+	}
+	if got["email"] != (pos{2, 7, 2}) { // "ünï " is 6 bytes (ü and ï take 2 each): byte columns, 1-based
+		t.Errorf("email at %+v", got["email"])
+	}
+	if got["private-key"] != (pos{3, 3, 5}) {
+		t.Errorf("private key block at %+v (want line 3 col 3, ending on line 5)", got["private-key"])
+	}
+	if got["kv-secret"].line != 6 {
+		t.Errorf("kv-secret at %+v", got["kv-secret"])
+	}
+}
+
+func TestSpanLinesSurviveLongLines(t *testing.T) {
+	in := "short\n" + strings.Repeat("x", 3000) + " password=hunter2 " + strings.Repeat("y", 3000) + "\nend password=abc12345\n"
+	_, spans, err := scrubWithSpans(scrub.Options{MaxLineBytes: 1024, ReadBufferSize: 64, Overlap: 256}, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(spans) != 2 || spans[0].Line != 2 || spans[0].Column != 3000+1+1+9 || spans[1].Line != 3 {
+		t.Errorf("spans = %+v", spans)
+	}
+}

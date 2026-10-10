@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/hbenali/logscrub/internal/config"
 	"github.com/hbenali/logscrub/internal/detect"
 	"github.com/hbenali/logscrub/internal/scrub"
 	"github.com/hbenali/logscrub/internal/serve"
@@ -29,6 +28,7 @@ func runServe(ctx context.Context, args []string, stderr io.Writer) int {
 		addr        = fs.String("addr", serve.DefaultAddr, "address to listen on (loopback by default)")
 		allowRemote = fs.Bool("allow-remote", false, "allow a non-loopback address (the UI has no authentication)")
 		configPath  = fs.String("config", "", "TOML rules file (same as the CLI)")
+		noConfig    = fs.Bool("no-config", false, "do not read the per-user config file")
 		keyFile     = fs.String("key-file", "", "file holding the pseudonym HMAC key (or set LOGSCRUB_KEY); default: random per run")
 		maxBody     = fs.Int64("max-body-bytes", serve.DefaultMaxBodyBytes, "largest text accepted")
 		maxLine     = fs.Int("max-line-bytes", scrub.DefaultMaxLineBytes, "longest line scanned in one piece")
@@ -53,14 +53,10 @@ func runServe(ctx context.Context, args []string, stderr io.Writer) int {
 		return exitUsage
 	}
 
-	var cfg config.Config
-	if *configPath != "" {
-		c, err := config.Load(*configPath)
-		if err != nil {
-			outf(stderr, "logscrub: %v\n", err)
-			return exitUsage
-		}
-		cfg = *c
+	cfg, err := loadConfig(*configPath, *noConfig)
+	if err != nil {
+		outf(stderr, "logscrub: %v\n", err)
+		return exitUsage
 	}
 	allow, rules, err := cfg.Compile()
 	if err != nil {

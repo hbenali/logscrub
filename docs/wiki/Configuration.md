@@ -1,6 +1,6 @@
 # Configuration
 
-Everything works without a config file. Add one with `--config logscrub.toml` for an allow-list, custom rules, or to change which detectors run.
+Everything works without a config file. Add one with `--config logscrub.toml` (or put one at `$XDG_CONFIG_HOME/logscrub/config.toml`, e.g. `~/.config/logscrub/config.toml`, which is read automatically unless you pass `--no-config`; logscrub never reads a config from the current directory, see [Using it in CI](CI)) for an allow-list, custom rules, or to change which detectors run.
 
 ```toml
 # logscrub.toml

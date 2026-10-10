@@ -1,0 +1,45 @@
+#compdef logscrub
+# zsh completion for logscrub. Install with:
+#   logscrub completion zsh > "${fpath[1]}/_logscrub"
+_logscrub() {
+  local -a detectors
+  detectors=(${(f)"$(logscrub --list-detectors 2>/dev/null | awk '{print $1}')"})
+
+  if [[ ${words[2]} == serve ]]; then
+    _arguments \
+      '--addr[address to listen on (loopback by default)]:address:' \
+      '--allow-remote[allow a non-loopback address (no authentication)]' \
+      '--config[TOML rules file]:file:_files' \
+      '--no-config[do not read the per-user config file]' \
+      '--key-file[file holding the pseudonym HMAC key]:file:_files' \
+      '--max-body-bytes[largest text accepted]:bytes:' \
+      '--max-line-bytes[longest line scanned in one piece]:bytes:' \
+      '--max-private-key-lines[longest private key block masked line by line]:lines:' \
+      '--help[show help]'
+    return
+  fi
+  if [[ ${words[2]} == completion ]]; then
+    _values 'shell' bash zsh fish
+    return
+  fi
+
+  _arguments \
+    '--check[write nothing; exit 1 if anything would be masked]' \
+    '--report[print counts per detector (never the matched text)]' \
+    '--report-format[format of --report]:format:(text json sarif)' \
+    '--enable[detector ids to add to the defaults]:ids:_sequence compadd -a detectors' \
+    '--disable[detector ids to turn off]:ids:_sequence compadd -a detectors' \
+    '--list-detectors[list detector ids and exit]' \
+    '--version[print version and exit]' \
+    '--max-line-bytes[longest line scanned in one piece]:bytes:' \
+    '--max-private-key-lines[longest private key block masked line by line]:lines:' \
+    '--mode[replacement style]:mode:(marker pseudonym)' \
+    '--key-file[file holding the pseudonym HMAC key]:file:_files' \
+    '--config[TOML rules file]:file:_files' \
+    '--no-config[do not read the per-user config file]' \
+    '(-o --output)'{-o,--output}'[write the cleaned text to this file]:file:_files' \
+    '--help[show help]' \
+    '1:command:(serve completion)' \
+    '*:file:_files'
+}
+_logscrub "$@"

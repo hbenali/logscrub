@@ -8,4 +8,6 @@
 
 Usage: `some-command | logscrub > clean.log`, `logscrub app.log`, `logscrub --check app.log` (exit 1 if anything would be masked), `logscrub --report app.log` (counts per detector, never the matched text), `logscrub --list-detectors`, `logscrub --mode pseudonym app.log`, `logscrub --config logscrub.toml app.log` (see [Configuration](Configuration)).
 
+**Shell completion and man page:** `logscrub completion bash|zsh|fish` prints a completion script (for example `logscrub completion bash > ~/.local/share/bash-completion/completions/logscrub`). The release archives include `logscrub.1`; copy it to a `man1` directory (or `man -l logscrub.1`).
+
 Pattern matching can't find every secret. Review the output before sharing it.

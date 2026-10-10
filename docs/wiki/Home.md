@@ -11,6 +11,7 @@ Mask secrets and personal data in logs
 | Install it | [Installation](Installation) |
 | See what it detects | [Detectors](Detectors) |
 | Configure rules, allow-lists, pseudonyms | [Configuration](Configuration) |
+| Gate CI, get SARIF or JSON reports | [Using it in CI](CI) |
 | Use the browser UI | [Web UI](Web-UI) |
 | Fix a problem | [Troubleshooting](Troubleshooting) |
 | Run it safely | [Security](Security) |

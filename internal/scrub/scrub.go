@@ -58,8 +58,15 @@ type Options struct {
 // Span is one replacement, as byte offsets into the input stream: the input
 // bytes [Start, End) were replaced by Replacement. Spans are reported in
 // order and never overlap; applying them to the input reproduces the output.
+//
+// Line and Column locate the start (1-based; Column counts bytes) and EndLine
+// the line of the last byte, which differs from Line only for private key
+// blocks that span lines.
 type Span struct {
 	Start, End  int64
+	Line        int64
+	Column      int64
+	EndLine     int64
 	Detector    string
 	Replacement string
 }
@@ -100,6 +107,9 @@ type Scrubber struct {
 	inBlock    bool
 	blockLines int
 	blockStart int64
+
+	lineNo, lineStart       int64 // position of the line being processed
+	blockLine, blockLineBeg int64 // where the open private key block started
 }
 
 // New builds a Scrubber.
@@ -150,6 +160,7 @@ func (s *Scrubber) Run(r io.Reader, w io.Writer) error {
 
 	var pending []byte // bytes of the current line not yet emitted
 	var base int64     // stream offset of pending[0]
+	s.lineNo, s.lineStart = 1, 0
 	for {
 		chunk, err := br.ReadSlice('\n')
 		pending = append(pending, chunk...)
@@ -160,6 +171,8 @@ func (s *Scrubber) Run(r io.Reader, w io.Writer) error {
 			}
 			base += int64(len(pending))
 			pending = pending[:0]
+			s.lineNo++
+			s.lineStart = base
 		case errors.Is(err, bufio.ErrBufferFull):
 			if len(pending) >= s.maxLine {
 				rest, cut, ferr := s.flushWindow(pending, base, bw)
@@ -177,7 +190,7 @@ func (s *Scrubber) Run(r io.Reader, w io.Writer) error {
 				base += int64(len(pending))
 			}
 			if s.inBlock { // a key block that never ended runs to the end of input
-				s.report(s.blockStart, base, "private-key", detect.MarkerPrefix+"private-key]")
+				s.reportBlock(base, "private-key", detect.MarkerPrefix+"private-key]")
 			}
 			return bw.Flush()
 		default:
@@ -199,14 +212,14 @@ func (s *Scrubber) handleLine(line []byte, base int64, w *bufio.Writer) error {
 			s.blockLines++
 			if s.blockLines >= s.maxPKLns {
 				s.inBlock = false
-				s.report(s.blockStart, base+int64(len(line)), "private-key", detect.MarkerPrefix+"private-key]")
+				s.reportBlock(base+int64(len(line)), "private-key", detect.MarkerPrefix+"private-key]")
 				s.res.Warnings = append(s.res.Warnings, fmt.Sprintf(
 					"private key block longer than %d lines: the rest of it is not masked", s.maxPKLns))
 			}
 			return nil // the line is part of the key: dropped
 		}
 		s.inBlock = false
-		s.report(s.blockStart, base+int64(loc[1]), "private-key", detect.MarkerPrefix+"private-key]")
+		s.reportBlock(base+int64(loc[1]), "private-key", detect.MarkerPrefix+"private-key]")
 		return s.emit(body[loc[1]:], eol, base+int64(loc[1]), w)
 	}
 
@@ -222,6 +235,7 @@ func (s *Scrubber) handleLine(line []byte, base int64, w *bufio.Writer) error {
 		}
 		s.count("private-key")
 		s.inBlock, s.blockLines, s.blockStart = true, 0, base+int64(loc[0])
+		s.blockLine, s.blockLineBeg = s.lineNo, s.lineStart
 		_, err := w.WriteString(detect.MarkerPrefix + "private-key]")
 		return err
 	}
@@ -440,7 +454,20 @@ func (s *Scrubber) replacement(di int, secret []byte) string {
 
 func (s *Scrubber) report(start, end int64, id, replacement string) {
 	if s.observe != nil {
-		s.observe(Span{Start: start, End: end, Detector: id, Replacement: replacement})
+		s.observe(Span{
+			Start: start, End: end, Line: s.lineNo, Column: start - s.lineStart + 1, EndLine: s.lineNo,
+			Detector: id, Replacement: replacement,
+		})
+	}
+}
+
+// reportBlock reports a private key block that began on an earlier line.
+func (s *Scrubber) reportBlock(end int64, id, replacement string) {
+	if s.observe != nil {
+		s.observe(Span{
+			Start: s.blockStart, End: end, Line: s.blockLine, Column: s.blockStart - s.blockLineBeg + 1, EndLine: s.lineNo,
+			Detector: id, Replacement: replacement,
+		})
 	}
 }
 

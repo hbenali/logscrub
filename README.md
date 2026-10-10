@@ -12,6 +12,7 @@ logscrub --report app.log        # counts per detector, never the matched text
 logscrub --mode pseudonym app.log          # stable tags for emails and IPs: the log stays debuggable
 logscrub --config logscrub.toml app.log    # allow-list, custom rules, enable/disable detectors
 logscrub serve                             # local web UI: paste or drop a log, see what would be masked
+logscrub --check --report --report-format sarif app.log > logscrub.sarif   # for CI and code scanning
 ```
 
 ```text

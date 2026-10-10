@@ -1,5 +1,13 @@
 # Web UI
 
+## The online demo
+
+**https://logscrub.hbenali.ovh/** is the same page with the engine compiled to WebAssembly instead of a server behind it, hosted as a static site on GitHub Pages. Your text is processed by code running in your own browser and is not sent anywhere: the page's CSP only allows loading its own files, there is no server to receive text (so no POST is ever made), and you can confirm it in the browser's network tab. It starts with a made-up sample log; the "Load sample" button brings it back. Text is limited to 2 MiB because WebAssembly runs on the page's main thread. A hosted *server* demo would have meant pasting logs into someone else's machine, which is exactly what logscrub exists to avoid, so there isn't one.
+
+The site is built from the same `internal/serve/web` files as the local UI by `scripts/build-demo.sh`, deployed by `.github/workflows/pages.yml` on every change to the engine or UI, and tested in a real headless Chrome before each deploy (`scripts/demo-test.mjs`): it checks that text is scrubbed in the browser, that no request leaves the page's origin or carries the text, and that the CSP blocks other origins.
+
+## Running it locally
+
 `logscrub serve` starts a local page for people who would rather paste than pipe.
 
 ```sh

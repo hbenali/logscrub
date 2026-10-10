@@ -121,7 +121,8 @@ try {
   check(!requests.some((r) => r.method !== 'GET'), 'no request is a POST (or anything but a GET)');
   check(!requests.some((r) => r.body.includes('carol') || r.body.includes('s3cretpass')), 'no request body contains the text');
   const urls = [...new Set(requests.map((r) => r.url.replace(origin, '')))];
-  check(urls.every((u) => /^\/logscrub\/(|app\.js|demo\.js|style\.css|wasm_exec\.js|logscrub\.wasm)$/.test(u)), 'only the demo\'s own files were fetched', JSON.stringify(urls));
+  const own = new RegExp('^' + PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(|app\\.js|demo\\.js|style\\.css|wasm_exec\\.js|logscrub\\.wasm)$');
+  check(urls.every((u) => own.test(u)), 'only the demo\'s own files were fetched', JSON.stringify(urls));
   if (!remote) check(hits.every((h) => h.startsWith('GET ')), 'the static server saw only GETs');
 
   // 4. the CSP really blocks other origins (decided by violation events and by the stranger server never being hit)

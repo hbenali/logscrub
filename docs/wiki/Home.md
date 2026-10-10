@@ -8,6 +8,7 @@ Mask secrets and personal data in logs
 
 | I want to… | Page |
 | --- | --- |
+| Try it in the browser, nothing uploaded | [logscrub.hbenali.ovh](https://logscrub.hbenali.ovh/) |
 | Install it | [Installation](Installation) |
 | See what it detects | [Detectors](Detectors) |
 | Configure rules, allow-lists, pseudonyms | [Configuration](Configuration) |

@@ -2,6 +2,8 @@
 
 ![logscrub: share your logs, not your secrets](docs/banner.png)
 
+**[Try it in your browser](https://logscrub.hbenali.ovh/)**: the real engine compiled to WebAssembly, so what you paste never leaves the page.
+
 Mask secrets and personal data in logs so they can be shared safely (bug reports, tickets, chat).
 
 ```sh
@@ -32,6 +34,8 @@ Provider tokens (Docker Hub, Anthropic, OpenAI, Google, npm, PyPI, SendGrid, Hug
 **Pseudonym mode** replaces emails and IPs with `[email:k3x9p2qa]`-style tags derived from an HMAC key, so the same address maps to the same tag across a file and across runs (give `--key-file` or `LOGSCRUB_KEY`). Secrets always get a fixed marker, never a tag. See the [wiki](https://github.com/hbenali/logscrub/wiki/Configuration) for the config file. The roadmap is in [docs/SPEC.md](docs/SPEC.md).
 
 ## Web UI
+
+Try it without installing anything: **https://logscrub.hbenali.ovh/** (the engine runs in your browser as WebAssembly; open the network tab and you will see no request carrying your text). Locally:
 
 ![The logscrub web UI: a log pasted on the left, every match highlighted by detector in the result below](docs/screenshots/web-ui.png)
 

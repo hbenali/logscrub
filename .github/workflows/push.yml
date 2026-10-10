@@ -54,10 +54,14 @@ jobs:
           subject-path: dist/checksums.txt
 
   docker:
-    name: Docker (GHCR)
+    name: Docker (GHCR and Docker Hub)
     needs: test
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    env:
+      # Docker Hub is used only when both repository secrets exist, so a missing
+      # secret cannot break a tag build (tags can't be redone once published).
+      HAVE_DOCKERHUB: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
     permissions:
       contents: read
       packages: write
@@ -67,6 +71,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # DOCKERHUB_TOKEN is an access token with read/write scope on hbenali/logscrub,
+      # not the account password.
+      - name: Log in to Docker Hub
+        if: env.HAVE_DOCKERHUB == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
@@ -87,8 +99,17 @@ jobs:
           tags: |
             ghcr.io/hbenali/logscrub:${{ github.ref_name }}
             ghcr.io/hbenali/logscrub:latest
+            ${{ env.HAVE_DOCKERHUB == 'true' && format('docker.io/hbenali/logscrub:{0}', github.ref_name) || '' }}
+            ${{ env.HAVE_DOCKERHUB == 'true' && 'docker.io/hbenali/logscrub:latest' || '' }}
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ghcr.io/hbenali/logscrub
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+      - name: Attest build provenance (Docker Hub)
+        if: env.HAVE_DOCKERHUB == 'true'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: docker.io/hbenali/logscrub
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true

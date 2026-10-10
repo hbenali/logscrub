@@ -44,7 +44,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		maxLine     = fs.Int("max-line-bytes", scrub.DefaultMaxLineBytes, "longest line scanned in one piece")
 	)
 	fs.Usage = func() {
-		fmt.Fprintf(stderr, `Usage: logscrub [flags] [file ...]
+		outf(stderr, `Usage: logscrub [flags] [file ...]
 
 Reads files (or stdin when none, or "-") and writes the text with secrets masked.
 Pattern matching cannot find every secret: review the output before sharing it.
@@ -61,27 +61,27 @@ Flags:
 	}
 
 	if *showVersion {
-		fmt.Fprintf(stdout, "logscrub %s (%s)\n", orUnknown(version), orUnknown(commit))
+		outf(stdout, "logscrub %s (%s)\n", orUnknown(version), orUnknown(commit))
 		return exitOK
 	}
 	if *list {
 		for _, d := range detect.All() {
-			fmt.Fprintf(stdout, "%-16s %s\n", d.ID, d.Desc)
+			outf(stdout, "%-16s %s\n", d.ID, d.Desc)
 		}
 		return exitOK
 	}
 	if *maxLine < 1024 {
-		fmt.Fprintln(stderr, "logscrub: --max-line-bytes must be at least 1024")
+		outf(stderr, "logscrub: --max-line-bytes must be at least 1024\n")
 		return exitUsage
 	}
 
 	dets, err := selectDetectors(*enable, *disable)
 	if err != nil {
-		fmt.Fprintf(stderr, "logscrub: %v\n", err)
+		outf(stderr, "logscrub: %v\n", err)
 		return exitUsage
 	}
 
-	var out io.Writer = stdout
+	out := io.Writer(stdout)
 	if *check {
 		out = io.Discard
 	}
@@ -90,13 +90,13 @@ Flags:
 	code := exitOK
 	if err := scrubInputs(s, fs.Args(), stdin, out); err != nil {
 		// Messages from the engine and from os never contain input text.
-		fmt.Fprintf(stderr, "logscrub: %v\n", err)
+		outf(stderr, "logscrub: %v\n", err)
 		code = exitIOFail
 	}
 
 	res := s.Result()
 	for _, w := range res.Warnings {
-		fmt.Fprintf(stderr, "logscrub: warning: %s\n", w)
+		outf(stderr, "logscrub: warning: %s\n", w)
 	}
 	if *report {
 		dest := stderr
@@ -131,7 +131,7 @@ func scrubOne(s *scrub.Scrubber, name string, stdin io.Reader, out io.Writer) er
 	if err != nil {
 		return fmt.Errorf("%w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }() // read-only: a close error cannot lose data
 	return s.Run(f, out)
 }
 
@@ -174,10 +174,13 @@ func printReport(w io.Writer, res *scrub.Result) {
 	}
 	sort.Strings(ids)
 	for _, id := range ids {
-		fmt.Fprintf(w, "%-16s %d\n", id, res.Counts[id])
+		outf(w, "%-16s %d\n", id, res.Counts[id])
 	}
-	fmt.Fprintf(w, "%-16s %d\n", "total", res.Total())
+	outf(w, "%-16s %d\n", "total", res.Total())
 }
+
+// outf writes diagnostics and help; a failed write to a closed pipe is not worth reporting.
+func outf(w io.Writer, format string, a ...any) { _, _ = fmt.Fprintf(w, format, a...) }
 
 func orUnknown(s string) string {
 	if s == "" {

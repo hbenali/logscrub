@@ -191,7 +191,7 @@ func TestCleanCorpusUnchanged(t *testing.T) {
 	}
 	for _, f := range files {
 		t.Run(filepath.Base(f), func(t *testing.T) {
-			in, err := os.ReadFile(f)
+			in, err := os.ReadFile(f) //nolint:gosec // f comes from globbing our own testdata
 			if err != nil {
 				t.Fatal(err)
 			}

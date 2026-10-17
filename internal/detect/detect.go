@@ -92,6 +92,8 @@ func All() []*Detector {
 		phone(),
 		usSSN(),
 		macAddress(),
+		username(),
+		hostname(),
 		highEntropy(),
 	}
 }

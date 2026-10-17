@@ -296,3 +296,98 @@ func phone() *Detector {
 		},
 	}
 }
+
+// ---- user names (opt-in) ----
+
+// userName is what a login name looks like: starts with a letter or
+// underscore, then letters, digits and . _ -  (no @: emails have their own detector).
+const userName = `([A-Za-z_][A-Za-z0-9._-]{0,63})`
+
+func username() *Detector {
+	return &Detector{
+		ID: "username",
+		Desc: "login name after user=, username:, \"user\": ..., sshd/sudo messages (Accepted ... for NAME, Invalid user NAME, sudo: NAME : TTY); " +
+			"role accounts such as root or runner are left alone; off by default",
+		Optional: true,
+		Patterns: []*regexp.Regexp{
+			// user=alice, "username": "alice", login: alice; the key must end in the word.
+			regexp.MustCompile(`(?i)\b(?:user(?:name)?|login|logname|uid)["']?\s*[:=]\s*["']?` + userName),
+			// sshd: Accepted publickey for alice from ..., Failed password for invalid user bob from ...
+			regexp.MustCompile(`(?i)\b(?:accepted|failed)\s+\S+\s+for\s+(?:(?:invalid|illegal)\s+user\s+)?` + userName + `\s+from\b`),
+			// sshd: Invalid user bob from ...; PAM: session opened for user carol
+			regexp.MustCompile(`(?i)\b(?:invalid|illegal)\s+user\s+` + userName),
+			regexp.MustCompile(`(?i)\bsession\s+(?:opened|closed)\s+for\s+user\s+` + userName),
+			// sudo:   alice : TTY=pts/0 ; PWD=/home/alice ; USER=root ; COMMAND=...
+			regexp.MustCompile(`(?i)\bsudo:\s+` + userName + `\s+:\s+(?:tty|pwd|user)=`),
+		},
+		Groups:    []int{1},
+		Hints:     []string{"user", "login", "logname", "uid", "sudo", "accepted", "failed"},
+		FoldHints: true,
+		Pseudonym: true,
+		Canonical: bytesToLower,
+		Validate: func(name []byte) bool {
+			l := strings.ToLower(string(name))
+			return !homeSkip[l] && !userPlaceholder[l] && validKVValue(name)
+		},
+	}
+}
+
+// userPlaceholder lists values that stand for "no user", not a person.
+var userPlaceholder = map[string]bool{
+	"unknown": true, "anonymous": true, "anon": true, "system": true, "daemon": true, "service": true,
+	"unauthenticated": true, "invalid": true, "empty": true, "na": true, "n": true, "id": true,
+	"name": true, "username": true, "login": true, "uid": true, "string": true, "str": true, "me": true,
+	"self": true, "current": true, "owner": true, "unspecified": true, "any": true,
+}
+
+// ---- host names (opt-in) ----
+
+// hostTLDs are the top-level domains hostname recognises. It is a list, not
+// "any two letters", because x.py, main.rs and foo.md are file names; the
+// country codes that are also common file extensions (pl, sh, so, md, ...) are
+// left out on purpose.
+var hostTLDs = func() map[string]bool {
+	m := map[string]bool{}
+	for _, t := range strings.Fields(`
+		com net org edu gov mil int info biz name pro io dev app cloud online site tech xyz club shop store
+		local localhost internal lan corp home intranet localdomain private
+		eu de fr uk nl es it ch at be se dk fi ru cn jp kr in br au ca us tn ma dz eg za ng ke ie pt gr
+		cz hu ro bg ua tr il ae sa mx ar cl co nz sg hk tw th vn id my ph
+	`) {
+		m[t] = true
+	}
+	return m
+}()
+
+func hostname() *Detector {
+	label := `[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?`
+	return &Detector{
+		ID:       "hostname",
+		Desc:     "fully qualified host name with a common top-level domain (db1.corp.example.com, build-7.internal); off by default",
+		Optional: true,
+		Patterns: []*regexp.Regexp{
+			regexp.MustCompile(`(?:` + label + `\.)+[A-Za-z]{2,24}`),
+		},
+		Hints:     []string{"."},
+		Pseudonym: true,
+		Canonical: bytesToLower,
+		Validate: func(b []byte) bool {
+			s := strings.ToLower(string(b))
+			return len(s) <= 253 && hostTLDs[s[strings.LastIndexByte(s, '.')+1:]]
+		},
+		Check: func(line []byte, start, end int) bool {
+			if c, ok := byteAt(line, start-1); ok && (isWordByte(c) || c == '.' || c == '-') {
+				return false // the tail of a longer dotted name
+			}
+			c, ok := byteAt(line, end)
+			if !ok {
+				return true
+			}
+			if c == '.' { // a sentence-ending dot is fine; a.b.com.x is not a host
+				n, ok := byteAt(line, end+1)
+				return !ok || !isWordByte(n)
+			}
+			return !isWordByte(c) && c != '-' && c != '('
+		},
+	}
+}

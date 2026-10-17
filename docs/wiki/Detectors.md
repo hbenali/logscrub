@@ -51,10 +51,14 @@
 | --- | --- | --- |
 | `us-ssn` | US social security number (123-45-6789) |  |
 | `mac-address` | hardware (MAC) address | yes |
+| `username` | login name after `user=`, `username:`, `"user": ...`, and in sshd/PAM/sudo messages (`Accepted ... for NAME`, `Invalid user NAME`, `sudo: NAME : TTY=`); role accounts such as `root` or `runner` and placeholders such as `unknown` are left alone | yes |
+| `hostname` | fully qualified host name with a common top-level domain (`db1.corp.example.com`, `build-7.internal`); file names such as `main.go` or `util.py` and code such as `fmt.Println` are left alone | yes |
 | `high-entropy` | long random-looking string with no label (letters and digits, entropy > 4), expect false positives |  |
 
 ## False positives and what is left alone
 
 Every detector has look-alike traps in the test corpus: version strings (`Chrome/126.0.0.0`), timestamps, MAC addresses (unless `mac-address` is on), `ssh://git@host`, `icon@2x.png`, `scikit-learn`, role accounts in home paths (`/home/runner`), hashes and UUIDs. If something harmless is masked, `logscrub --report` shows which detector fired; please open an issue with a fake example of the line.
+
+The opt-in `username` and `hostname` detectors are what make a log shareable when the names themselves identify people or infrastructure. `hostname` only recognises a list of common top-level domains (generic ones, `.local`/`.internal`/`.lan`, and many country codes) so that file names and method calls are not mistaken for hosts; the country codes that are also common file extensions (`.pl`, `.sh`, `.so`, `.md`, ...) are deliberately not on the list, so a host under those is not found. In pseudonym mode both get stable tags, so `[hostname:k3x9p2qa]` still shows that one host failed 40 times; `username` and `home-path` tag the same person differently because the tag also depends on the detector.
 
 The opt-in `high-entropy` detector flags long random-looking strings with no label. It is deliberately conservative (it ignores hashes, UUIDs, slugs and words) but it will still hit things like base64 payloads, so review its output.

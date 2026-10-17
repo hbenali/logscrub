@@ -325,7 +325,7 @@ func TestBinaryBytesSurvive(t *testing.T) {
 }
 
 func FuzzScrub(f *testing.F) {
-	for _, s := range []string{dirty(), "password=x\n", pemBegin, "Bearer " + strings.Repeat("a", 40), "a://b:c@d", "\x00\xff"} {
+	for _, s := range []string{dirty(), "password=x\n", pemBegin, "Bearer " + strings.Repeat("a", 40), "a://b:c@d", "\x00\xff", "Accepted publickey for erin from 1.2.3.4 user=bob db1.example.com\n"} {
 		f.Add([]byte(s))
 	}
 	f.Fuzz(func(t *testing.T, in []byte) {

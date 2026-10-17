@@ -149,6 +149,7 @@ func TestPrefilterDoesNotChangeOutput(t *testing.T) {
 		"Authorization: BEARER abcdefghij0123456789 AUTHORIZATION=basic dXNlcg==\n",
 		"AWS_SECRET_ACCESS_KEY=" + awsSecret + "\n",
 		"mail a@b.org ip 8.8.4.4 v6 2001:db8::5 card 4111111111111111 +14155550123\n",
+		"Accepted publickey for erin from 10.0.0.1\nFAILED PASSWORD FOR INVALID USER Bob FROM x\nSUDO:  al : TTY=1\nUSERNAME=Zed LOGIN: q\nHOST DB1.Example.COM\n",
 		"",
 	}
 	files, _ := filepath.Glob("../../testdata/clean/*")

@@ -628,7 +628,9 @@ func TestStartupMessageAndTokenPrinting(t *testing.T) {
 			time.Sleep(10 * time.Millisecond)
 		}
 		cancel()
-		<-errc
+		if err := <-errc; err != nil {
+			t.Errorf("Run returned %v after cancel", err)
+		}
 		return log.String()
 	}
 	o := newOptions().withAddr("127.0.0.1:0").withToken(accessToken)

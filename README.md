@@ -11,6 +11,8 @@ some-command | logscrub > clean.log
 logscrub app.log                 # files work too
 logscrub --check app.log         # CI gate: exit 1 if anything would be masked
 logscrub --report app.log        # counts per detector, never the matched text
+logscrub -r -i logs/             # clean a whole directory in place (add --backup-suffix .bak to keep originals)
+logscrub app.log.gz              # gzip input is read transparently
 logscrub --mode pseudonym app.log          # stable tags for emails and IPs: the log stays debuggable
 logscrub --config logscrub.toml app.log    # allow-list, custom rules, enable/disable detectors
 logscrub serve                             # local web UI: paste or drop a log, see what would be masked

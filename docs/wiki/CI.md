@@ -55,6 +55,17 @@ Reports never contain the text that was found, so they are safe to upload as CI 
 
 `logscrub -o clean.log app.log` writes the cleaned text to a file: atomically (a failed run never leaves a half-written file or replaces the old one), with mode 0600, and it refuses to overwrite a file it is reading. The shell equivalent, `logscrub app.log > clean.log`, works too; `-o` is for when you want those guarantees.
 
+## Cleaning files in place, directories and gzip
+
+- `logscrub -i app.log other.log` rewrites each file with its cleaned text. Every file is replaced atomically (temporary file in the same directory, then rename) and keeps its permissions; a file with nothing to mask is not touched at all (same mtime, no backup). `--backup-suffix .bak` keeps the original of each *changed* file as `app.log.bak` (a hard link; an existing backup is never overwritten, the run fails for that file instead). The backup still holds the secrets, so delete it or keep it out of anything you publish. A file that cannot be scanned is reported and left as it was; the other files are still processed and the exit code is 3. `-i` cannot be combined with `--check` or `-o`, and cannot rewrite standard input.
+- `-r` / `--recursive` descends into the directories you pass. It skips symbolic links (they could point outside the tree), `.git`/`.hg`/`.svn`, files ending in the backup suffix, and binary files (a NUL byte in the first 8000 bytes; a count is printed). `--include '*.log,*.txt'` limits it to matching file names and `--exclude node_modules` skips matching files or directories. Files named on the command line are always processed.
+- **gzip** input is detected by its content (also on stdin) and decompressed on the fly in constant memory. With `-i` a `.gz` file stays gzip; `-o clean.log.gz` writes gzip; on standard output you get plain text. zip, bzip2 and zstd archives are not supported.
+
+```sh
+logscrub -r -i --exclude node_modules --include '*.log,*.log.gz' /var/log/myapp
+logscrub --check -r --report support-bundle/      # gate: nothing is written
+```
+
 ## Config in CI
 
 logscrub reads a per-user config (`$XDG_CONFIG_HOME/logscrub/config.toml`, if it exists and is not world-writable) and an explicit `--config FILE`. It deliberately does **not** look for a config in the current directory: an allow-list in an untrusted checkout could make logscrub leak what it was asked to mask. In CI, pass your committed config explicitly:

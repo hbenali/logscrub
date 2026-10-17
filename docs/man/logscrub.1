@@ -50,7 +50,22 @@ TOML rules file: \fBenable\fR and \fBdisable\fR lists, an allow-list (\fB[[allow
 Do not read the per-user config file.
 .TP
 .BR \-o ", " \-\-output " \fIFILE\fR"
-Write the cleaned text to \fIFILE\fR instead of standard output. The file is written atomically with mode 0600, and logscrub refuses to overwrite a file it is reading. Cannot be combined with \fB\-\-check\fR.
+Write the cleaned text to \fIFILE\fR instead of standard output. The file is written atomically with mode 0600, and logscrub refuses to overwrite a file it is reading. Cannot be combined with \fB\-\-check\fR. If \fIFILE\fR ends in \fB.gz\fR the output is gzip-compressed.
+.TP
+.BR \-i ", " \-\-in\-place
+Rewrite each \fIfile\fR with its cleaned text instead of writing to standard output. Each file is replaced atomically (temporary file in the same directory, then rename) and keeps its permissions; a gzip file stays gzip. A file with nothing to mask is not touched. A file that cannot be scanned is reported and left as it was, the others are still processed, and the exit status is 3. Needs file arguments; cannot be combined with \fB\-\-check\fR or \fB\-\-output\fR.
+.TP
+.BI \-\-backup\-suffix " SUFFIX"
+With \fB\-\-in\-place\fR, keep the original of each changed file as \fIfile\fRSUFFIX (a hard link, so it never overwrites an existing backup; the run fails for that file instead). The backup still holds the secrets. \fB\-\-recursive\fR skips files that end in SUFFIX.
+.TP
+.BR \-r ", " \-\-recursive
+Descend into the directories given as arguments. Symbolic links, \fB.git\fR, \fB.hg\fR and \fB.svn\fR directories and binary files (a NUL byte in the first 8000 bytes) are skipped; a count of skipped binary files is printed. Files named on the command line are always processed.
+.TP
+.BI \-\-include " GLOBS"
+With \fB\-\-recursive\fR, comma-separated file name globs; only matching files are processed (default: all).
+.TP
+.BI \-\-exclude " GLOBS"
+With \fB\-\-recursive\fR, comma-separated file or directory name globs to skip.
 .TP
 .BI \-\-max\-line\-bytes " N"
 Longest line scanned in one piece (default 1048576). Longer lines are scanned in overlapping windows.

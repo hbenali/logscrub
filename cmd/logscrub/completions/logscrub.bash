@@ -10,7 +10,7 @@ _logscrub() {
         esac
     done
 
-    local main_flags="--check --report --report-format --enable --disable --list-detectors --version --max-line-bytes --max-private-key-lines --mode --key-file --config --no-config --output -o --help"
+    local main_flags="--check --report --report-format --enable --disable --list-detectors --version --max-line-bytes --max-private-key-lines --mode --key-file --config --no-config --output -o --in-place -i --backup-suffix --recursive -r --include --exclude --help"
     local serve_flags="--addr --allow-remote --config --no-config --key-file --token-file --max-body-bytes --max-line-bytes --max-private-key-lines --help"
 
     if [[ $sub == completion ]]; then

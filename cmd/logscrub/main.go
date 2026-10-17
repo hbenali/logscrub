@@ -57,15 +57,23 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		configPath  = fs.String("config", "", "TOML rules file (enable/disable, allow-list, custom rules)")
 		noConfig    = fs.Bool("no-config", false, "do not read the per-user config file")
 		format      = fs.String("report-format", "text", "format of --report: text, json or sarif (locations only, never the matched text)")
-		output      = fs.String("output", "", "write the cleaned text to this file (atomically, mode 0600) instead of stdout")
+		output      = fs.String("output", "", "write the cleaned text to this file (atomically, mode 0600) instead of stdout; gzip-compressed if it ends in .gz")
+		inPlace     = fs.Bool("in-place", false, "rewrite each file with its cleaned text (atomically; files with nothing to mask are left untouched)")
+		backup      = fs.String("backup-suffix", "", "with --in-place: keep the original next to the file under this suffix (for example .bak; it still holds the secrets)")
+		recursive   = fs.Bool("recursive", false, "descend into directories (symlinks, .git/.hg/.svn and binary files are skipped)")
+		include     = fs.String("include", "", "with --recursive: comma-separated file name globs to process (default: all)")
+		exclude     = fs.String("exclude", "", "with --recursive: comma-separated file or directory name globs to skip")
 	)
 	fs.StringVar(output, "o", "", "short for --output")
+	fs.BoolVar(inPlace, "i", false, "short for --in-place")
+	fs.BoolVar(recursive, "r", false, "short for --recursive")
 	fs.Usage = func() {
 		outf(stderr, `Usage: logscrub [flags] [file ...]
        logscrub serve [flags]      (local web UI; see logscrub serve -h)
        logscrub completion bash|zsh|fish
 
 Reads files (or stdin when none, or "-") and writes the text with secrets masked.
+gzip input is detected and read transparently.
 Pattern matching cannot find every secret: review the output before sharing it.
 
 Flags:
@@ -116,6 +124,11 @@ Flags:
 		outf(stderr, "logscrub: --report-format needs --report\n")
 		return exitUsage
 	}
+	walk := walkOptions{include: splitList(*include), exclude: splitList(*exclude), skipSuffix: *backup}
+	if msg := checkFileFlags(fs.Args(), *inPlace, *recursive, *check, *output, *backup, walk); msg != "" {
+		outf(stderr, "logscrub: %s\n", msg)
+		return exitUsage
+	}
 
 	cfg, err := loadConfig(*configPath, *noConfig)
 	if err != nil {
@@ -138,18 +151,31 @@ Flags:
 		return exitUsage
 	}
 
+	var files []inputFile
+	if len(fs.Args()) > 0 {
+		if files, err = expandInputs(fs.Args(), *recursive, walk); err != nil {
+			outf(stderr, "logscrub: %v\n", err)
+			return exitUsage
+		}
+	}
+
 	out := io.Writer(stdout)
 	var target *atomicFile
+	var gz *gzipOutput
 	switch {
 	case *check:
 		out = io.Discard
 	case *output != "":
-		target, err = newAtomicFile(*output, fs.Args())
+		target, err = newAtomicFile(*output, inputPaths(files))
 		if err != nil {
 			outf(stderr, "logscrub: %v\n", err)
 			return exitUsage
 		}
 		out = target
+		if strings.HasSuffix(*output, ".gz") {
+			gz = newGzipOutput(target)
+			out = gz
+		}
 	}
 
 	col := &collector{}
@@ -160,10 +186,22 @@ Flags:
 	s := scrub.New(opts)
 
 	code := exitOK
-	if err := scrubInputs(s, col, fs.Args(), stdin, out); err != nil {
+	skipped := 0
+	if *inPlace {
+		code = scrubInPlace(s, col, files, *backup, stderr, &skipped)
+	} else if err := scrubInputs(s, col, files, stdin, out, &skipped); err != nil {
 		// Messages from the engine and from os never contain input text.
 		outf(stderr, "logscrub: %v\n", err)
 		code = exitIOFail
+	}
+	if gz != nil && code == exitOK {
+		if err := gz.Close(); err != nil {
+			outf(stderr, "logscrub: --output: %v\n", err)
+			code = exitIOFail
+		}
+	}
+	if skipped > 0 {
+		outf(stderr, "logscrub: skipped %d binary file(s)\n", skipped)
 	}
 	if target != nil {
 		if code == exitOK {
@@ -196,33 +234,33 @@ Flags:
 // stdinName labels standard input in reports.
 const stdinName = "<stdin>"
 
-func scrubInputs(s *scrub.Scrubber, col *collector, files []string, stdin io.Reader, out io.Writer) error {
+func scrubInputs(s *scrub.Scrubber, col *collector, files []inputFile, stdin io.Reader, out io.Writer, skipped *int) error {
 	if len(files) == 0 {
-		col.file = stdinName
-		return s.Run(stdin, out)
+		files = []inputFile{{path: "-"}}
 	}
-	for _, name := range files {
-		col.file = name
-		if name == "-" {
+	for _, f := range files {
+		col.file = f.path
+		if f.path == "-" {
 			col.file = stdinName
 		}
-		if err := scrubOne(s, name, stdin, out); err != nil {
+		if err := scrubOne(s, f, stdin, out, skipped); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func scrubOne(s *scrub.Scrubber, name string, stdin io.Reader, out io.Writer) error {
-	if name == "-" {
-		return s.Run(stdin, out)
-	}
-	f, err := os.Open(name) //nolint:gosec // opening the path the user asked for is the job
+func scrubOne(s *scrub.Scrubber, f inputFile, stdin io.Reader, out io.Writer, skipped *int) error {
+	src, err := openSource(f.path, stdin)
 	if err != nil {
-		return fmt.Errorf("%w", err)
+		return err
 	}
-	defer func() { _ = f.Close() }() // read-only: a close error cannot lose data
-	return s.Run(f, out)
+	defer src.Close()
+	if f.walked && src.looksBinary() {
+		*skipped++
+		return nil
+	}
+	return s.Run(src.r, out)
 }
 
 // selectDetectors starts from the built-ins that are on by default plus the

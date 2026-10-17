@@ -20,6 +20,11 @@ complete -c logscrub -n '__fish_use_subcommand' -l key-file -r -d 'pseudonym HMA
 complete -c logscrub -n '__fish_use_subcommand' -l config -r -d 'TOML rules file'
 complete -c logscrub -n '__fish_use_subcommand' -l no-config -d 'do not read the per-user config file'
 complete -c logscrub -n '__fish_use_subcommand' -s o -l output -r -d 'write the cleaned text to this file'
+complete -c logscrub -n '__fish_use_subcommand' -s i -l in-place -d 'rewrite each file with its cleaned text'
+complete -c logscrub -n '__fish_use_subcommand' -l backup-suffix -x -d 'keep the original of each rewritten file under this suffix'
+complete -c logscrub -n '__fish_use_subcommand' -s r -l recursive -d 'descend into directories'
+complete -c logscrub -n '__fish_use_subcommand' -l include -x -d 'with --recursive: file name globs to process'
+complete -c logscrub -n '__fish_use_subcommand' -l exclude -x -d 'with --recursive: file or directory name globs to skip'
 complete -c logscrub -n '__fish_use_subcommand' -l help -d 'show help'
 complete -c logscrub -n '__fish_use_subcommand' -F
 

@@ -39,6 +39,11 @@ _logscrub() {
     '--config[TOML rules file]:file:_files' \
     '--no-config[do not read the per-user config file]' \
     '(-o --output)'{-o,--output}'[write the cleaned text to this file]:file:_files' \
+    '(-i --in-place)'{-i,--in-place}'[rewrite each file with its cleaned text]' \
+    '--backup-suffix[keep the original of each rewritten file under this suffix]:suffix:' \
+    '(-r --recursive)'{-r,--recursive}'[descend into directories]' \
+    '--include[with --recursive: file name globs to process]:globs:' \
+    '--exclude[with --recursive: file or directory name globs to skip]:globs:' \
     '--help[show help]' \
     '1:command:(serve completion)' \
     '*:file:_files'

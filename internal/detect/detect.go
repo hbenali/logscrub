@@ -271,6 +271,39 @@ func kvSecret() *Detector {
 	}
 }
 
+// KeyNamePattern is what a name given to KeyValue may look like.
+var KeyNamePattern = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,64}$`)
+
+// KeyValue builds a detector like kv-secret for your own key names: the value
+// of name=value, "name": value and (on YAML-looking lines) name: value is
+// masked when the key ends in one of names (case-insensitive), so "pin" also
+// covers user_pin and "userPin". It is how the config file's mask_keys works.
+func KeyValue(id, desc string, names []string) (*Detector, error) {
+	if len(names) == 0 {
+		return nil, fmt.Errorf("no key names")
+	}
+	var alts, hints []string
+	for _, n := range names {
+		if !KeyNamePattern.MatchString(n) {
+			return nil, fmt.Errorf("invalid key name %q (letters, digits, . _ -; at most 64 characters)", n)
+		}
+		alts = append(alts, regexp.QuoteMeta(n))
+		hints = append(hints, strings.ToLower(n))
+	}
+	key := `[A-Za-z0-9_.-]*(?:` + strings.Join(alts, "|") + `)`
+	return &Detector{
+		ID:        id,
+		Desc:      desc,
+		Hints:     hints,
+		FoldHints: true,
+		Patterns: []*regexp.Regexp{
+			regexp.MustCompile(`(?i)(?:` + key + `["']?\s*=\s*|["']` + key + `["']\s*:\s*|^\s*-?\s*` + key + `\s*:\s+)` + kvValue),
+		},
+		Groups:   []int{1, 2, 3},
+		Validate: validKVValue,
+	}, nil
+}
+
 // validKVValue rejects empty values, literals and template placeholders.
 func validKVValue(v []byte) bool {
 	s := strings.ToLower(string(bytes.TrimSpace(v)))

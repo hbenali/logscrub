@@ -170,7 +170,7 @@ testdata/clean|dirty/
 - **Off by default:** `phone` (E.164 only). Enable with `--enable phone` or in the config.
 - **Order of precedence for enable/disable:** built-in defaults, then the config file, then command-line flags.
 - **Frontail "sanitized download":** out of scope for logscrub, which must not depend on frontail. The integration is on frontail's side: pipe the log through `logscrub` (stdin to stdout) or call `logscrub serve`'s `POST /api/scrub`.
-- **Known limitations, not planned for 1.0:** JSON-aware masking by key name beyond `kv-secret`; a plain `name: value` line is only masked on YAML-looking lines (prose such as `failed to refresh token: refused` is deliberately left alone); a private key block longer than `--max-private-key-lines` is only masked up to that limit (and reported).
+- **Known limitations, not planned for 1.0:** JSON-aware masking by key name beyond `kv-secret` (partly addressed by `mask_keys`, section 15); a plain `name: value` line is only masked on YAML-looking lines (prose such as `failed to refresh token: refused` is deliberately left alone); a private key block longer than `--max-private-key-lines` is only masked up to that limit (and reported).
 - **Deviation from section 10:** the must-change corpus is a table of Go tests (secrets assembled from string pieces so scanners do not flag the repository) instead of golden files.
 
 ## 14. Additions after 1.0 (1.1)
@@ -184,4 +184,19 @@ Everything in sections 1-13 is the 1.0 specification. 1.1 adds, without changing
 - **Web UI:** `--allow-remote` requires an access token (generated and printed in a URL fragment, or `--token-file` / `LOGSCRUB_TOKEN`), compared in constant time; keyboard-operable tabs; an axe-core audit with zero violations.
 - **Distribution:** `logscrub completion bash|zsh|fish`, a man page, `.deb`/`.rpm`/`.apk` packages, a composite GitHub Action that verifies the release checksum, a pre-commit hook, and attestation of every archive and package.
 
-Considered and not done: auto-discovering a project-level config (security, above); a moving `v1` tag for the Action (tags here are immutable and each publishes a release); in-place editing (`-o` plus atomic rename covers the safe cases).
+Considered and not done: auto-discovering a project-level config (security, above); a moving `v1` tag for the Action (tags here are immutable and each publishes a release).
+
+(In-place editing was on this list and was added after all, see section 15.)
+
+## 15. Additions after 1.1
+
+No 1.x flag, exit code or output format changes; everything below is new.
+
+- **`--in-place/-i`, `--backup-suffix`:** each file is rewritten through a temporary file in its directory and renamed over the original, keeping its mode. A file with nothing to mask is not touched (no mtime change, no backup). The backup is a hard link, so an existing backup is never overwritten (that file fails instead). A file that fails is reported and left as it was, the others continue, exit 3. An explicit symlink argument rewrites its target; the link stays. Rejected: `-i` with `--check`, `-o` or stdin.
+- **`--recursive/-r`, `--include`, `--exclude`:** walks directories (lexical order), skipping symlinks, `.git`/`.hg`/`.svn`, files ending in the backup suffix and the `--map-file`, and binary files (a NUL in the first 8000 decompressed bytes; reported as a count). Explicit files are always processed. Globs match the base name.
+- **gzip:** detected by magic bytes on files and stdin, streamed. `-i` keeps `.gz` files gzip, `-o x.gz` writes gzip, stdout is plain. A truncated archive is an I/O error (exit 3) and leaves the file alone. zip, bzip2 and zstd are not supported (a zip would need entry-wise rewriting and its entry names can be sensitive too).
+- **Reversible pseudonyms:** `--map-file` records `[kind:tag]` to the original text, only for `Pseudonym` detectors (secrets are never recorded), in a 0600 JSON file written atomically and merged across runs; with `-i`/`-o` it is saved before anything is replaced. `logscrub restore --map-file F [-o|-i] [files]` streams the text back; unknown tags are left alone with a warning; a group- or world-writable map is refused. The first spelling seen wins when two share a tag. At most 2 million distinct values.
+- **Detectors:** opt-in `username` (key=value forms and sshd/PAM/sudo messages; role accounts and placeholders skipped) and `hostname` (FQDN with a common TLD; file-extension country codes deliberately excluded). Both tag in pseudonym mode. `home-path` already did.
+- **Config `mask_keys`:** extra key names for a `kv-secret`-style detector (`custom-key`), matching keys that end in the name, in `name=value`, JSON and YAML-looking forms.
+
+Considered and not done: a separate "entropy" detector (`high-entropy` already exists, opt-in); full-path pseudonyms (too broad to be safe by default); sharing one tag between `username` and `home-path` for the same person (the tag depends on the detector id).

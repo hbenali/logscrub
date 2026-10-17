@@ -302,3 +302,20 @@ func TestTruncatedGzipFailsAndKeepsFile(t *testing.T) {
 		t.Error("a truncated archive was modified")
 	}
 }
+
+func TestMaskKeysFromConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	cfg := filepath.Join(dir, "c.toml")
+	write(t, cfg, `mask_keys = ["pin"]`, 0o600)
+	in := `{"user_pin": "9876", "pincode": 5}` + "\n"
+	code, out, errOut := exec(t, in, "--config", cfg)
+	if code != exitOK || out != `{"user_pin": "[REDACTED:custom-key]", "pincode": 5}`+"\n" {
+		t.Errorf("code=%d out=%q stderr=%q", code, out, errOut)
+	}
+	if _, out, _ := exec(t, in, "--config", cfg, "--disable", "custom-key"); out != in {
+		t.Errorf("--disable custom-key left %q", out)
+	}
+	if _, out, _ := exec(t, in, "--no-config"); out != in {
+		t.Errorf("without the config %q", out)
+	}
+}

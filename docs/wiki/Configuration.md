@@ -6,6 +6,7 @@ Everything works without a config file. Add one with `--config logscrub.toml` (o
 # logscrub.toml
 enable  = ["phone"]          # detectors that are off by default
 disable = ["credit-card"]
+mask_keys = ["pin", "otp"]   # also mask the value of keys ending in these names
 
 [[allow]]                    # never mask these
 exact = ["noreply@example.com", "10.0.0.1"]   # compared case-insensitively
@@ -17,6 +18,12 @@ regex     = 'TKT-([A-Z0-9]{16})'
 group     = 1                # which group to mask; 0 = the whole match
 pseudonym = false            # true: stable tag in pseudonym mode
 ```
+
+### `mask_keys`: your own key names
+
+The built-in `kv-secret` detector only knows keys that end in password, secret, token, api key and similar words. `mask_keys` adds yours: the value is masked in `pin=1234`, in JSON (`{"user_pin": "9876", "otp": 654321}`, strings and numbers, also pretty-printed) and in YAML-looking lines (`- otp: 112233`). A key matches when it **ends in** a listed name, case-insensitively, so `pin` covers `user_pin` and `userPin` but not `pincode` or `max_pin_tries`, and it also covers `spin`; pick names that are specific. Empty values, `null`, `true`/`false` and template placeholders (`${OTP}`) are left alone, and prose such as `enter your pin: now` is not touched. Names are letters, digits, `.`, `_` and `-` (at most 64 characters, at most 200 names). The findings are reported as `[REDACTED:custom-key]`, and `--disable custom-key` turns the list off for one run.
+
+For anything more specific, such as a value that depends on its path in the JSON document, use a `[[rule]]` with a regexp.
 
 The file is parsed strictly: an unknown key or an invalid regexp is an error (exit 2). Patterns use Go's RE2 engine, so they run in linear time. Precedence for enable/disable: built-in defaults, then the file, then command-line flags.
 

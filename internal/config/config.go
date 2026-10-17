@@ -18,12 +18,21 @@ import (
 
 const maxConfigBytes = 1 << 20
 
+// MaskKeysID is the detector id used for the config file's mask_keys.
+const (
+	MaskKeysID  = "custom-key"
+	maxMaskKeys = 200
+)
+
 // Config is the parsed file.
 type Config struct {
 	Enable  []string `toml:"enable"`
 	Disable []string `toml:"disable"`
-	Allow   []Allow  `toml:"allow"`
-	Rules   []Rule   `toml:"rule"`
+	// MaskKeys are extra key names whose values are masked in name=value,
+	// "name": value and YAML name: value forms; a key matches if it ends in the name.
+	MaskKeys []string `toml:"mask_keys"`
+	Allow    []Allow  `toml:"allow"`
+	Rules    []Rule   `toml:"rule"`
 }
 
 // Allow lists text that must never be masked.
@@ -140,6 +149,19 @@ func (c *Config) Compile() (allow func([]byte) bool, rules []*detect.Detector, e
 			ID: r.ID, Desc: desc, Patterns: []*regexp.Regexp{re},
 			Groups: []int{r.Group}, Pseudonym: r.Pseudonym,
 		})
+	}
+	if len(c.MaskKeys) > 0 {
+		if len(c.MaskKeys) > maxMaskKeys {
+			return nil, nil, fmt.Errorf("config: mask_keys has more than %d names", maxMaskKeys)
+		}
+		if seen[MaskKeysID] {
+			return nil, nil, fmt.Errorf("config: rule id %q is reserved for mask_keys", MaskKeysID)
+		}
+		d, kerr := detect.KeyValue(MaskKeysID, "value of the keys named in mask_keys (config file)", c.MaskKeys)
+		if kerr != nil {
+			return nil, nil, fmt.Errorf("config: mask_keys: %w", kerr)
+		}
+		rules = append(rules, d)
 	}
 	return allow, rules, nil
 }

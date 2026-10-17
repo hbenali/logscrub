@@ -11,7 +11,8 @@ _logscrub() {
       '--allow-remote[allow a non-loopback address (an access token is then required)]' \
       '--token-file[file holding the API access token]:file:_files' \
       '--config[TOML rules file]:file:_files' \
-      '--no-config[do not read the per-user config file]' \
+      '--map-file[with --mode pseudonym: record what each tag stands for, so logscrub restore can reverse it]:file:_files' \
+    '--no-config[do not read the per-user config file]' \
       '--key-file[file holding the pseudonym HMAC key]:file:_files' \
       '--max-body-bytes[largest text accepted]:bytes:' \
       '--max-line-bytes[longest line scanned in one piece]:bytes:' \
@@ -45,7 +46,7 @@ _logscrub() {
     '--include[with --recursive: file name globs to process]:globs:' \
     '--exclude[with --recursive: file or directory name globs to skip]:globs:' \
     '--help[show help]' \
-    '1:command:(serve completion)' \
+    '1:command:(serve restore completion)' \
     '*:file:_files'
 }
 _logscrub "$@"

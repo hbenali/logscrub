@@ -37,6 +37,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		switch args[0] {
 		case "serve":
 			return runServeSignals(args[1:], stderr)
+		case "restore":
+			return runRestore(args[1:], stdin, stdout, stderr)
 		case "completion":
 			return runCompletion(args[1:], stdout, stderr)
 		}
@@ -58,6 +60,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		noConfig    = fs.Bool("no-config", false, "do not read the per-user config file")
 		format      = fs.String("report-format", "text", "format of --report: text, json or sarif (locations only, never the matched text)")
 		output      = fs.String("output", "", "write the cleaned text to this file (atomically, mode 0600) instead of stdout; gzip-compressed if it ends in .gz")
+		mapPath     = fs.String("map-file", "", "with --mode pseudonym: record which text each tag stands for (mode 0600; sensitive) so `logscrub restore` can reverse it")
 		inPlace     = fs.Bool("in-place", false, "rewrite each file with its cleaned text (atomically; files with nothing to mask are left untouched)")
 		backup      = fs.String("backup-suffix", "", "with --in-place: keep the original next to the file under this suffix (for example .bak; it still holds the secrets)")
 		recursive   = fs.Bool("recursive", false, "descend into directories (symlinks, .git/.hg/.svn and binary files are skipped)")
@@ -70,6 +73,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs.Usage = func() {
 		outf(stderr, `Usage: logscrub [flags] [file ...]
        logscrub serve [flags]      (local web UI; see logscrub serve -h)
+       logscrub restore --map-file FILE [file ...]   (put pseudonymised text back)
        logscrub completion bash|zsh|fish
 
 Reads files (or stdin when none, or "-") and writes the text with secrets masked.
@@ -124,6 +128,10 @@ Flags:
 		outf(stderr, "logscrub: --report-format needs --report\n")
 		return exitUsage
 	}
+	if *mapPath != "" && (*mode != "pseudonym" || *check) {
+		outf(stderr, "logscrub: --map-file needs --mode pseudonym and cannot be combined with --check\n")
+		return exitUsage
+	}
 	walk := walkOptions{include: splitList(*include), exclude: splitList(*exclude), skipSuffix: *backup}
 	if msg := checkFileFlags(fs.Args(), *inPlace, *recursive, *check, *output, *backup, walk); msg != "" {
 		outf(stderr, "logscrub: %s\n", msg)
@@ -159,6 +167,10 @@ Flags:
 		}
 	}
 
+	if *mapPath != "" {
+		files = dropFile(files, *mapPath) // the map holds the originals: never scrub it
+	}
+
 	out := io.Writer(stdout)
 	var target *atomicFile
 	var gz *gzipOutput
@@ -180,6 +192,20 @@ Flags:
 
 	col := &collector{}
 	opts := scrub.Options{Detectors: dets, MaxLineBytes: *maxLine, MaxPrivateKeyLines: *maxKeyLines, Key: key, Allow: allow}
+	var pmap *pseudoMap
+	if *mapPath != "" {
+		if pmap, err = loadPseudoMap(*mapPath); err != nil {
+			outf(stderr, "logscrub: %v\n", err)
+			return exitUsage
+		}
+		opts.OnPseudonym = pmap.record
+	}
+	saveMap := func() error {
+		if pmap == nil {
+			return nil
+		}
+		return pmap.save(*mapPath)
+	}
 	if *report && *format != "text" {
 		opts.Observe = col.observe
 	}
@@ -188,7 +214,7 @@ Flags:
 	code := exitOK
 	skipped := 0
 	if *inPlace {
-		code = scrubInPlace(s, col, files, *backup, stderr, &skipped)
+		code = scrubInPlace(s, col, files, *backup, stderr, &skipped, saveMap)
 	} else if err := scrubInputs(s, col, files, stdin, out, &skipped); err != nil {
 		// Messages from the engine and from os never contain input text.
 		outf(stderr, "logscrub: %v\n", err)
@@ -205,7 +231,11 @@ Flags:
 	}
 	if target != nil {
 		if code == exitOK {
-			if err := target.Commit(); err != nil {
+			// The map must be on disk before the pseudonymised file replaces anything.
+			if err := saveMap(); err != nil {
+				outf(stderr, "logscrub: --map-file: %v\n", err)
+				code = exitIOFail
+			} else if err := target.Commit(); err != nil {
 				outf(stderr, "logscrub: %v\n", err)
 				code = exitIOFail
 			}
@@ -214,6 +244,12 @@ Flags:
 		}
 	}
 
+	if code == exitOK {
+		if err := saveMap(); err != nil { // stdout output: nothing to hold back
+			outf(stderr, "logscrub: --map-file: %v\n", err)
+			code = exitIOFail
+		}
+	}
 	res := s.Result()
 	for _, w := range res.Warnings {
 		outf(stderr, "logscrub: warning: %s\n", w)

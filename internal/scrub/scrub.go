@@ -47,6 +47,11 @@ type Options struct {
 	// highlight what would be masked). It must not retain the Span's strings
 	// beyond what it needs; it never sees the masked text itself.
 	Observe func(Span)
+	// OnPseudonym, if set, is called whenever a pseudonym tag is produced,
+	// with the tag and the text it replaces. It exists for the reversible
+	// mapping file (--map-file): the original is sensitive, so the callee must
+	// treat it as such. It is never called for secrets, which get fixed markers.
+	OnPseudonym func(tag string, original []byte)
 
 	// Tuning knobs, exposed for tests. Overlap should be at least the longest
 	// secret you expect; matches longer than it may be split at a window edge.
@@ -96,6 +101,7 @@ type Scrubber struct {
 	allow    func([]byte) bool
 	noPre    bool
 	observe  func(Span)
+	onPseudo func(string, []byte)
 	maxLine  int
 	maxPKLns int
 	bufSize  int
@@ -120,7 +126,7 @@ func New(o Options) *Scrubber {
 		maxPKLns: orDefault(o.MaxPrivateKeyLines, DefaultMaxPrivateKeyLines),
 		bufSize:  orDefault(o.ReadBufferSize, defaultReadBuffer),
 	}
-	s.key, s.allow, s.noPre, s.observe = o.Key, o.Allow, o.NoPrefilter, o.Observe
+	s.key, s.allow, s.noPre, s.observe, s.onPseudo = o.Key, o.Allow, o.NoPrefilter, o.Observe, o.OnPseudonym
 	s.overlap = orDefault(o.Overlap, min(defaultOverlap, s.maxLine/4))
 	if s.overlap < 1 {
 		s.overlap = 1
@@ -449,7 +455,11 @@ func (s *Scrubber) replacement(di int, secret []byte) string {
 	mac.Write([]byte{0})
 	mac.Write(canon)
 	tag := strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(mac.Sum(nil)))[:8]
-	return "[" + d.ID + ":" + tag + "]"
+	rep := "[" + d.ID + ":" + tag + "]"
+	if s.onPseudo != nil {
+		s.onPseudo(rep, secret)
+	}
+	return rep
 }
 
 func (s *Scrubber) report(start, end int64, id, replacement string) {

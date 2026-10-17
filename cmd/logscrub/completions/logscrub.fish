@@ -2,6 +2,7 @@
 #   logscrub completion fish > ~/.config/fish/completions/logscrub.fish
 complete -c logscrub -f
 complete -c logscrub -n '__fish_use_subcommand' -a serve -d 'local web UI'
+complete -c logscrub -n '__fish_use_subcommand' -a restore -d 'put pseudonymised text back using a map file'
 complete -c logscrub -n '__fish_use_subcommand' -a completion -d 'print a shell completion script'
 complete -c logscrub -n '__fish_seen_subcommand_from completion' -a 'bash zsh fish'
 
@@ -18,6 +19,8 @@ complete -c logscrub -n '__fish_use_subcommand' -l max-private-key-lines -x -d '
 complete -c logscrub -n '__fish_use_subcommand' -l mode -x -a 'marker pseudonym' -d 'replacement style'
 complete -c logscrub -n '__fish_use_subcommand' -l key-file -r -d 'pseudonym HMAC key file'
 complete -c logscrub -n '__fish_use_subcommand' -l config -r -d 'TOML rules file'
+complete -c logscrub -n '__fish_use_subcommand' -l map-file -r -d 'with --mode pseudonym: record what each tag stands for'
+complete -c logscrub -n '__fish_seen_subcommand_from restore' -l map-file -r -d 'map file to restore from'
 complete -c logscrub -n '__fish_use_subcommand' -l no-config -d 'do not read the per-user config file'
 complete -c logscrub -n '__fish_use_subcommand' -s o -l output -r -d 'write the cleaned text to this file'
 complete -c logscrub -n '__fish_use_subcommand' -s i -l in-place -d 'rewrite each file with its cleaned text'

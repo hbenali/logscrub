@@ -14,6 +14,7 @@ logscrub --report app.log        # counts per detector, never the matched text
 logscrub -r -i logs/             # clean a whole directory in place (add --backup-suffix .bak to keep originals)
 logscrub app.log.gz              # gzip input is read transparently
 logscrub --mode pseudonym app.log          # stable tags for emails and IPs: the log stays debuggable
+logscrub --mode pseudonym --map-file map.json app.log > out.log   # ... and `logscrub restore --map-file map.json out.log` reverses it
 logscrub --config logscrub.toml app.log    # allow-list, custom rules, enable/disable detectors
 logscrub serve                             # local web UI: paste or drop a log, see what would be masked
 logscrub --check --report --report-format sarif app.log > logscrub.sarif   # for CI and code scanning

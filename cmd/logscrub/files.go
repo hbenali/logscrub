@@ -193,11 +193,24 @@ func inputPaths(files []inputFile) []string {
 // temporary file in the same directory, which replaces the original only if
 // something was masked. A file that fails is reported and left as it was; the
 // others are still processed. It returns the exit code.
-func scrubInPlace(s *scrub.Scrubber, col *collector, files []inputFile, suffix string, stderr io.Writer, skipped *int) int {
+func scrubInPlace(s *scrub.Scrubber, col *collector, files []inputFile, suffix string, stderr io.Writer, skipped *int, prepare func() error) int {
+	return rewriteAll(files, suffix, stderr, skipped, func(f inputFile) { col.file = f.path }, prepare,
+		func(r io.Reader, w io.Writer) (int, error) {
+			before := s.Result().Total()
+			err := s.Run(r, w)
+			return s.Result().Total() - before, err
+		})
+}
+
+// transform copies r to w and returns how many changes it made.
+type transform func(r io.Reader, w io.Writer) (int, error)
+
+// rewriteAll applies t to every file in place; see scrubInPlace.
+func rewriteAll(files []inputFile, suffix string, stderr io.Writer, skipped *int, before func(inputFile), prepare func() error, t transform) int {
 	code := exitOK
 	for _, f := range files {
-		col.file = f.path
-		if err := rewriteFile(s, f, suffix, skipped); err != nil {
+		before(f)
+		if err := rewriteFile(f, suffix, skipped, prepare, t); err != nil {
 			outf(stderr, "logscrub: %s: %v\n", f.path, err)
 			code = exitIOFail
 		}
@@ -205,7 +218,9 @@ func scrubInPlace(s *scrub.Scrubber, col *collector, files []inputFile, suffix s
 	return code
 }
 
-func rewriteFile(s *scrub.Scrubber, f inputFile, suffix string, skipped *int) error {
+// prepare, if set, runs once the new content is complete and before it replaces
+// the file: the mapping file must be on disk before the originals are gone.
+func rewriteFile(f inputFile, suffix string, skipped *int, prepare func() error, t transform) error {
 	path := f.path
 	if !f.walked { // an explicit symlink: rewrite what it points to, not the link
 		p, err := filepath.EvalSymlinks(path)
@@ -248,16 +263,21 @@ func rewriteFile(s *scrub.Scrubber, f inputFile, suffix string, skipped *int) er
 		gz = newGzipOutput(tmp)
 		w = gz
 	}
-	before := s.Result().Total()
-	if err := s.Run(src.r, w); err != nil {
+	changes, err := t(src.r, w)
+	if err != nil {
 		return err
 	}
-	if s.Result().Total() == before {
+	if changes == 0 {
 		return nil // nothing to mask: leave the file (and its mtime) alone
 	}
 	if gz != nil {
 		if err := gz.Close(); err != nil {
 			return fmt.Errorf("%w", err)
+		}
+	}
+	if prepare != nil {
+		if err := prepare(); err != nil {
+			return err
 		}
 	}
 	if err := tmp.Chmod(st.Mode().Perm()); err != nil {
@@ -278,4 +298,21 @@ func rewriteFile(s *scrub.Scrubber, f inputFile, suffix string, skipped *int) er
 	}
 	committed = true
 	return nil
+}
+
+// dropFile removes path from files (compared as the same file on disk, so a
+// walk cannot reach a file that must not be processed).
+func dropFile(files []inputFile, path string) []inputFile {
+	st, err := os.Stat(path)
+	if err != nil {
+		return files
+	}
+	out := files[:0:0]
+	for _, f := range files {
+		if fst, err := os.Stat(f.path); err == nil && os.SameFile(st, fst) {
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
 }

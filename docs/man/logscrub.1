@@ -8,6 +8,9 @@ logscrub \- mask secrets and personal data in logs
 .B logscrub serve
 [\fIOPTIONS\fR]
 .br
+.B logscrub restore \-\-map\-file
+\fIFILE\fR [\fIOPTIONS\fR] [\fIFILE\fR ...]
+.br
 .B logscrub completion
 bash|zsh|fish
 .SH DESCRIPTION
@@ -51,6 +54,9 @@ Do not read the per-user config file.
 .TP
 .BR \-o ", " \-\-output " \fIFILE\fR"
 Write the cleaned text to \fIFILE\fR instead of standard output. The file is written atomically with mode 0600, and logscrub refuses to overwrite a file it is reading. Cannot be combined with \fB\-\-check\fR. If \fIFILE\fR ends in \fB.gz\fR the output is gzip-compressed.
+.TP
+.BI \-\-map\-file " FILE"
+With \fB\-\-mode pseudonym\fR, record which text each tag stands for in \fIFILE\fR (JSON, mode 0600, atomically written, merged with what the file already holds), so that \fBlogscrub restore\fR can reverse the substitution. The file contains the personal data that was removed: protect it like the original. Only pseudonymised kinds (emails, IP addresses, ...) are recorded, never secrets. With \fB\-\-in\-place\fR and \fB\-\-output\fR the file is written before anything is replaced. \fB\-\-recursive\fR never scrubs the map file itself.
 .TP
 .BR \-i ", " \-\-in\-place
 Rewrite each \fIfile\fR with its cleaned text instead of writing to standard output. Each file is replaced atomically (temporary file in the same directory, then rename) and keeps its permissions; a gzip file stays gzip. A file with nothing to mask is not touched. A file that cannot be scanned is reported and left as it was, the others are still processed, and the exit status is 3. Needs file arguments; cannot be combined with \fB\-\-check\fR or \fB\-\-output\fR.
@@ -108,6 +114,9 @@ Longest line scanned in one piece.
 .TP
 .BI \-\-max\-private\-key\-lines " N"
 Longest private key block masked line by line.
+.SH RESTORE
+.B logscrub restore \-\-map\-file
+\fIFILE\fR replaces the tags written in pseudonym mode (\fB[email:k3x9p2qa]\fR) with the text recorded in the map file, in files or standard input. Tags that are not in the map are left alone and counted in a warning. Options: \fB\-o\fR/\fB\-\-output\fR \fIFILE\fR, \fB\-i\fR/\fB\-\-in\-place\fR and \fB\-\-backup\-suffix\fR \fISUFFIX\fR, as above. Two spellings that share a tag (\fBBob@X.org\fR, \fBbob@x.org\fR) restore to the one seen first. The output contains personal data again.
 .SH COMPLETION
 .B logscrub completion
 prints a completion script for bash, zsh or fish, for example \fBlogscrub completion bash > ~/.local/share/bash-completion/completions/logscrub\fR.

@@ -6,11 +6,12 @@ _logscrub() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     for ((i = 1; i < COMP_CWORD; i++)); do
         case "${COMP_WORDS[i]}" in
-            serve | completion) sub="${COMP_WORDS[i]}"; break ;;
+            serve | completion | restore) sub="${COMP_WORDS[i]}"; break ;;
         esac
     done
 
-    local main_flags="--check --report --report-format --enable --disable --list-detectors --version --max-line-bytes --max-private-key-lines --mode --key-file --config --no-config --output -o --in-place -i --backup-suffix --recursive -r --include --exclude --help"
+    local main_flags="--check --report --report-format --enable --disable --list-detectors --version --max-line-bytes --max-private-key-lines --mode --key-file --config --no-config --output -o --in-place -i --map-file --backup-suffix --recursive -r --include --exclude --help"
+    local restore_flags="--map-file --output -o --in-place -i --backup-suffix --help"
     local serve_flags="--addr --allow-remote --config --no-config --key-file --token-file --max-body-bytes --max-line-bytes --max-private-key-lines --help"
 
     if [[ $sub == completion ]]; then
@@ -20,7 +21,7 @@ _logscrub() {
     case "$prev" in
         --mode) COMPREPLY=($(compgen -W "marker pseudonym" -- "$cur")); return ;;
         --report-format) COMPREPLY=($(compgen -W "text json sarif" -- "$cur")); return ;;
-        --config | --key-file | --token-file | --output | -o) COMPREPLY=($(compgen -f -- "$cur")); return ;;
+        --config | --key-file | --token-file | --map-file | --output | -o) COMPREPLY=($(compgen -f -- "$cur")); return ;;
         --enable | --disable)
             COMPREPLY=($(compgen -W "$(logscrub --list-detectors 2>/dev/null | awk '{print $1}')" -- "$cur"))
             return ;;
@@ -28,11 +29,13 @@ _logscrub() {
     if [[ $cur == -* ]]; then
         if [[ $sub == serve ]]; then
             COMPREPLY=($(compgen -W "$serve_flags" -- "$cur"))
+        elif [[ $sub == restore ]]; then
+            COMPREPLY=($(compgen -W "$restore_flags" -- "$cur"))
         else
             COMPREPLY=($(compgen -W "$main_flags" -- "$cur"))
         fi
     elif [[ -z $sub && $COMP_CWORD -eq 1 ]]; then
-        COMPREPLY=($(compgen -W "serve completion" -- "$cur") $(compgen -f -- "$cur"))
+        COMPREPLY=($(compgen -W "serve restore completion" -- "$cur") $(compgen -f -- "$cur"))
     elif [[ -z $sub ]]; then
         COMPREPLY=($(compgen -f -- "$cur"))
     fi

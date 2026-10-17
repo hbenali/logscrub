@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/goleak"
+
 	"github.com/hbenali/logscrub/internal/detect"
 )
 
@@ -23,6 +25,10 @@ const (
 	canary    = "S3CRETCANARY"
 	jsonCType = "application/json"
 )
+
+// TestMain fails the package if a test leaves a goroutine behind (a server
+// that does not shut down, a handler stuck on a channel).
+func TestMain(m *testing.M) { goleak.VerifyTestMain(m) }
 
 func newOptions() Options {
 	var on []string

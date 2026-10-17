@@ -62,13 +62,13 @@ Try it without installing anything: **https://logscrub.hbenali.ovh/** (the engin
 ## In CI and pre-commit
 
 ```yaml
-- uses: hbenali/logscrub@1.1.1       # GitHub Action: fails if a file would be masked
+- uses: hbenali/logscrub@1.2.0       # GitHub Action: fails if a file would be masked
   with: { files: build.log }
 ```
 
 ```yaml
 - repo: https://github.com/hbenali/logscrub   # pre-commit hook
-  rev: 1.1.1
+  rev: 1.2.0
   hooks: [{ id: logscrub }]
 ```
 

@@ -38,7 +38,8 @@ jobs:
             exit 1
           fi
 
-          rsync -a --delete --exclude .git docs/wiki/ wiki/
+          # -c compares contents: with -a alone a same-size edit (1.1.1 to 1.2.0) in the same second is skipped
+          rsync -ac --delete --exclude .git docs/wiki/ wiki/
 
           cd wiki
           if [ -z "$(git status --porcelain)" ]; then

@@ -1,7 +1,7 @@
 # UNTESTED SKETCH. Base images are pinned by digest (Dependabot's docker
 # ecosystem updates them); refresh with:
 #   docker buildx imagetools inspect golang:1.26-alpine --format '{{.Manifest.Digest}}'
-FROM golang:1.26-alpine@sha256:3082400e369fa24d5fc60bca20edab3f6d604e0c5a690ec66b295eff4dd87ade AS build
+FROM golang:1.27-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS build
 WORKDIR /src
 COPY go.mod ./
 COPY . .

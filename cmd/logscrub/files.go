@@ -264,6 +264,7 @@ func rewriteFile(f inputFile, suffix string, skipped *int, prepare func() error,
 		w = gz
 	}
 	changes, err := t(src.r, w)
+	src.Close() // Windows cannot rename over a file that is still open
 	if err != nil {
 		return err
 	}

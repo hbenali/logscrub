@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -75,7 +76,7 @@ func TestInPlaceRewritesAndKeepsMode(t *testing.T) {
 	if got := read(t, f); got != "ok\n"+cleanLine {
 		t.Errorf("file = %q", got)
 	}
-	if st, _ := os.Stat(f); st.Mode().Perm() != 0o400 {
+	if st, _ := os.Stat(f); runtime.GOOS != "windows" && st.Mode().Perm() != 0o400 { // Windows has no permission bits
 		t.Errorf("mode = %v, want 0400", st.Mode().Perm())
 	}
 	if left, _ := filepath.Glob(filepath.Join(dir, ".logscrub-*")); len(left) != 0 {

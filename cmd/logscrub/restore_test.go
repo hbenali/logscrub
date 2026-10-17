@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -28,7 +29,7 @@ func TestMapFileRoundTrip(t *testing.T) {
 	if strings.Contains(scrubbed, "bob@example.org") || strings.Contains(scrubbed, "203.0.113.7") || strings.Contains(scrubbed, secretValue) {
 		t.Fatalf("scrubbed output still holds data: %q", scrubbed)
 	}
-	if st, err := os.Stat(m); err != nil || st.Mode().Perm() != 0o600 {
+	if st, err := os.Stat(m); err != nil || (runtime.GOOS != "windows" && st.Mode().Perm() != 0o600) {
 		t.Fatalf("map file: %v mode %v", err, st)
 	}
 	// The map holds the personal data it must, and never a secret.
@@ -118,6 +119,9 @@ func TestMapFileRules(t *testing.T) {
 	write(t, m, `{"version":1,"entries":{}}`, 0o600)
 	if err := os.Chmod(m, 0o666); err != nil { //nolint:gosec // the point of the test
 		t.Fatal(err)
+	}
+	if runtime.GOOS == "windows" { // no permission bits to refuse on
+		return
 	}
 	if code, _, errOut := exec(t, "x\n", "restore", "--map-file", m); code != exitUsage || !strings.Contains(errOut, "writable") {
 		t.Errorf("writable map: code=%d stderr=%q", code, errOut)

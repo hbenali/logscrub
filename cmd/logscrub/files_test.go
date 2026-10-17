@@ -66,8 +66,10 @@ func TestInPlaceRewritesAndKeepsMode(t *testing.T) {
 	dir := t.TempDir()
 	f := filepath.Join(dir, "a.log")
 	write(t, f, "ok\n"+dirtyLine, 0o600)
-	if err := os.Chmod(f, 0o400); err != nil {
-		t.Fatal(err)
+	if runtime.GOOS != "windows" { // a read-only file cannot be replaced there
+		if err := os.Chmod(f, 0o400); err != nil {
+			t.Fatal(err)
+		}
 	}
 	code, out, errOut := exec(t, "", "-i", f)
 	if code != exitOK || out != "" {

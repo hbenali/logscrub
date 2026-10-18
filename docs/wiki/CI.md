@@ -9,7 +9,7 @@ logscrub --check build.log || { echo "secrets or personal data in build.log"; ex
 ## GitHub Action
 
 ```yaml
-- uses: hbenali/logscrub@1.2.0        # pin an exact release (or a commit SHA)
+- uses: hbenali/logscrub@1.2.1        # pin an exact release (or a commit SHA)
   with:
     files: build.log logs/*.log       # spaces or newlines; globs are expanded
     args: --config .github/logscrub.toml
@@ -29,7 +29,7 @@ There is deliberately no moving `v1` tag: tags here are immutable and each one p
 ```yaml
 repos:
   - repo: https://github.com/hbenali/logscrub
-    rev: 1.2.0
+    rev: 1.2.1
     hooks:
       - id: logscrub
         # args: [--config, .github/logscrub.toml]

@@ -92,6 +92,9 @@ sudo apt install logscrub
 sudo dnf copr enable hbenali/logscrub
 sudo dnf install logscrub
 
+# Any Linux with snapd (amd64): Snap Store
+sudo snap install logscrub
+
 # Docker (Docker Hub; the same image is at ghcr.io/hbenali/logscrub)
 docker run --rm -i hbenali/logscrub < app.log
 
@@ -99,7 +102,7 @@ docker run --rm -i hbenali/logscrub < app.log
 go install github.com/hbenali/logscrub/cmd/logscrub@latest
 ```
 
-The PPA and Copr packages install the binary, man page and shell completions, and the package manager keeps them up to date.
+The PPA and Copr packages install the binary, man page and shell completions, and the package manager keeps them up to date. The snap is strictly confined: it reads and writes files in your home directory and on removable media only (for other files, pipe them in: `sudo cat /var/log/app.log | logscrub`).
 
 Prebuilt binaries (linux, macOS and windows; amd64 and arm64) and `.deb`, `.rpm` and `.apk` packages are on [Releases](https://github.com/hbenali/logscrub/releases). They come with a checksum file and build attestations: `gh attestation verify FILE --repo hbenali/logscrub`. Check an install with `logscrub --version`. More detail, including shell completion: [Installation](https://github.com/hbenali/logscrub/wiki/Installation).
 

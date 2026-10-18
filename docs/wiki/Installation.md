@@ -8,6 +8,8 @@
 
 **Fedora (Copr):** `sudo dnf copr enable hbenali/logscrub && sudo dnf install logscrub` (Fedora 43, 44 and rawhide, x86_64). Copr builds it from a source RPM for each release (the spec is `packaging/rpm/logscrub.spec`), so `dnf upgrade` keeps it current; it installs the binary, man page, shell completions and the licence.
 
+**Snap (any Linux with snapd, amd64):** `sudo snap install logscrub` ([Snap Store](https://snapcraft.io/logscrub)). The snap is strictly confined, so it can read and write files in your home directory and on removable media, not elsewhere: for other files pipe them in (`sudo cat /var/log/app.log | logscrub`). It updates itself through snapd.
+
 **Packages:** each release also ships `.deb`, `.rpm` and `.apk` packages (linux amd64 and arm64) that install the binary, the man page, shell completions and the licence: `sudo dpkg -i logscrub_X.Y.Z_linux_amd64.deb`, `sudo rpm -i logscrub_X.Y.Z_linux_amd64.rpm`, `apk add --allow-untrusted logscrub_X.Y.Z_linux_amd64.apk`.
 
 **Verify a download:** check it against `checksums.txt` (`sha256sum -c --ignore-missing checksums.txt`), and verify the build provenance, which proves the file was built by this repository's release workflow: `gh attestation verify logscrub_X.Y.Z_linux_amd64.tar.gz --repo hbenali/logscrub`. From 1.1.0 every archive and package is attested individually; 1.0.0 attested `checksums.txt` only.

@@ -80,7 +80,7 @@ From 1.0, the command-line flags, exit codes, the config file format and the `[R
 
 ## Install
 
-`brew install hbenali/tap/logscrub`; binaries and `.deb` / `.rpm` / `.apk` packages on [Releases](https://github.com/hbenali/logscrub/releases) (checksummed and attested: `gh attestation verify FILE --repo hbenali/logscrub`); `docker run --rm -i hbenali/logscrub < app.log` (also `ghcr.io/hbenali/logscrub`); or `go install github.com/hbenali/logscrub/cmd/logscrub@latest`.
+`brew install hbenali/tap/logscrub`; on Ubuntu 22.04, 24.04 and 26.04, `sudo add-apt-repository ppa:hbenali/logscrub && sudo apt install logscrub`; binaries and `.deb` / `.rpm` / `.apk` packages on [Releases](https://github.com/hbenali/logscrub/releases) (checksummed and attested: `gh attestation verify FILE --repo hbenali/logscrub`); `docker run --rm -i hbenali/logscrub < app.log` (also `ghcr.io/hbenali/logscrub`); or `go install github.com/hbenali/logscrub/cmd/logscrub@latest`.
 
 ## Limits
 

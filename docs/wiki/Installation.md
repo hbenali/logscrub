@@ -4,6 +4,8 @@
 
 **Homebrew (macOS and Linux):** `brew install hbenali/tap/logscrub` (the formula installs the binary, man page and completions).
 
+**Ubuntu (PPA):** `sudo add-apt-repository ppa:hbenali/logscrub && sudo apt install logscrub` (22.04, 24.04 and 26.04). Launchpad builds it from source for each release, so `apt upgrade` keeps it current; it installs the binary, man page, shell completions and the licence. The packaging lives in `packaging/debian/` in the repository.
+
 **Packages:** each release also ships `.deb`, `.rpm` and `.apk` packages (linux amd64 and arm64) that install the binary, the man page, shell completions and the licence: `sudo dpkg -i logscrub_X.Y.Z_linux_amd64.deb`, `sudo rpm -i logscrub_X.Y.Z_linux_amd64.rpm`, `apk add --allow-untrusted logscrub_X.Y.Z_linux_amd64.apk`.
 
 **Verify a download:** check it against `checksums.txt` (`sha256sum -c --ignore-missing checksums.txt`), and verify the build provenance, which proves the file was built by this repository's release workflow: `gh attestation verify logscrub_X.Y.Z_linux_amd64.tar.gz --repo hbenali/logscrub`. From 1.1.0 every archive and package is attested individually; 1.0.0 attested `checksums.txt` only.

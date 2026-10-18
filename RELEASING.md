@@ -62,3 +62,13 @@ name. Launchpad rejects a version it has already seen, so a re-upload needs a ne
 Check the result at https://launchpad.net/~hbenali/+archive/ubuntu/logscrub/+packages.
 
 The `PPA_GPG_KEY` secret is a passphrase-less key made only for CI and registered on the Launchpad account.
+
+## Fedora Copr
+
+Pushing the tag also runs `.github/workflows/copr.yml`: it builds the source RPM (`scripts/build-srpm.sh`, spec in
+`packaging/rpm/logscrub.spec`, modules vendored because Copr builds have no network) and submits it to
+https://copr.fedorainfracloud.org/coprs/hbenali/logscrub/ (Fedora 43, 44 and rawhide; Fedora 42 ships Go 1.25 and can't
+build `go 1.26.8`). Like the PPA workflow it is separate from the release, and can be run from the Actions tab with a tag name.
+
+The `COPR_CONFIG` secret is the API config file from https://copr.fedorainfracloud.org/api/. **The token expires after
+180 days**: renew it there and update the secret, or the next tag's build fails at the submit step.

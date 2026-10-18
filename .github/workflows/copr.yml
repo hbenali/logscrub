@@ -1,0 +1,51 @@
+# Builds the source RPM (scripts/build-srpm.sh) and submits it to Fedora Copr
+# (hbenali/logscrub). A separate workflow on purpose: a failure here must never
+# affect the release workflow (tags can't be redone once published). Run it by
+# hand to test or to rebuild: Actions > Copr build > Run workflow, with the tag.
+#
+# Secret (repository secret): COPR_CONFIG is the content of the API config file
+# from https://copr.fedorainfracloud.org/api/ (login, username, token, copr_url).
+# The token expires after 180 days; renew it there and update the secret.
+name: Copr build
+
+on:
+  push:
+    tags: ['[0-9]*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build (e.g. 1.2.0)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build the SRPM and submit it to Copr
+    runs-on: ubuntu-latest
+    # Fedora's own tools: rpmbuild, golang (>= 1.26 for go.mod) and copr-cli.
+    container: fedora:44
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - name: Check the tag name
+        run: |
+          [[ "$TAG" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "bad tag name"; exit 1; }
+      - name: Install the tools
+        # git first: checkout needs it for fetch-depth 0 (git archive reads the tag)
+        run: dnf -y install git rpm-build golang copr-cli tar xz gzip
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Build the SRPM
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          scripts/build-srpm.sh "$TAG"
+      - name: Submit it to Copr and wait for the builds
+        env:
+          COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
+        run: |
+          mkdir -p ~/.config
+          (umask 077; printf '%s\n' "$COPR_CONFIG" > ~/.config/copr)
+          copr-cli build hbenali/logscrub "dist/srpm/logscrub-$TAG-1.src.rpm"

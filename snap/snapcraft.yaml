@@ -1,0 +1,55 @@
+name: logscrub
+title: logscrub
+summary: Mask secrets and personal data in logs
+description: |
+  logscrub reads logs on standard input or from files and masks API keys,
+  tokens, passwords, private keys and personal data such as email addresses,
+  so the logs can be shared safely. It streams its input, handles very long
+  lines, and can replace values with stable pseudonyms.
+
+  The snap is strictly confined: it can read and write files in your home
+  directory and on removable media, not elsewhere (for /var/log, pipe the file
+  in: `sudo cat /var/log/app.log | logscrub`). `logscrub serve` starts the local
+  web UI on a loopback address.
+license: MIT
+website: https://github.com/hbenali/logscrub
+source-code: https://github.com/hbenali/logscrub
+issues: https://github.com/hbenali/logscrub/issues
+contact: https://github.com/hbenali/logscrub/issues
+
+base: core24
+grade: stable
+confinement: strict
+adopt-info: logscrub
+
+platforms:
+  amd64:
+  arm64:
+
+apps:
+  logscrub:
+    command: bin/logscrub
+    completer: share/bash-completion/completions/logscrub
+    plugs:
+      - home
+      - removable-media
+      - network-bind # logscrub serve
+
+parts:
+  logscrub:
+    plugin: go
+    source: .
+    source-type: git
+    build-snaps:
+      - go/1.26/stable # go.mod needs 1.26.8; core24 ships an older Go
+    build-environment:
+      - CGO_ENABLED: "0"
+    override-pull: |
+      craftctl default
+      # the tag, or tag-N-gHASH between releases, the same way the other packages get it
+      craftctl set version="$(git describe --tags --always)"
+    override-build: |
+      go build -trimpath -ldflags "-s -w -X main.version=$(git describe --tags --always)" \
+        -o "$CRAFT_PART_INSTALL/bin/logscrub" ./cmd/logscrub
+      install -D -m 0644 cmd/logscrub/completions/logscrub.bash \
+        "$CRAFT_PART_INSTALL/share/bash-completion/completions/logscrub"

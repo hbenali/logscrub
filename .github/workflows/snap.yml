@@ -1,0 +1,59 @@
+# Builds the snap (snap/snapcraft.yaml), smoke-tests it, and on a release tag
+# uploads it to the Snap Store. A separate workflow on purpose: a failure here
+# must never affect the release workflow (tags can't be redone once published).
+# Pushes to main only build and test it, so the tag-only upload is the one step
+# a push does not exercise. Run it by hand to rebuild: Actions > Snap > Run workflow.
+#
+# Needs, once: the name registered (`snapcraft register logscrub`) and the
+# repository secret SNAPCRAFT_STORE_CREDENTIALS from `snapcraft export-login
+# --snaps logscrub --channels edge,candidate,stable,beta --acls package_access,package_push,package_release -`.
+# The channel is the repository variable SNAP_CHANNEL (default edge: promote with
+# `snapcraft release logscrub REVISION stable` once the snap has been tried).
+name: Snap
+
+on:
+  push:
+    branches: [main]
+    tags: ['[0-9]*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snap:
+    name: Build, test and upload the snap
+    # core24 snaps need a 24.04 host for --destructive-mode, so not ubuntu-latest
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the snap's version comes from git describe
+      - name: Install snapcraft
+        run: sudo snap install snapcraft --classic
+      - name: Build the snap
+        run: sudo snapcraft pack --destructive-mode --verbose
+      - name: Install it and check it works (strict confinement)
+        run: |
+          sudo snap install --dangerous ./logscrub_*.snap
+          logscrub --version
+          secret="ghp_$(printf 'a%.0s' $(seq 36))"
+          # stdin and stdout
+          out="$(echo "token=$secret mail bob@example.org" | logscrub)"
+          echo "$out"
+          grep -q 'REDACTED:github-token' <<<"$out"
+          # a file in the home directory (the `home` plug)
+          echo "token=$secret" > "$HOME/logscrub-snap-test.log"
+          logscrub "$HOME/logscrub-snap-test.log" | grep -q 'REDACTED:github-token'
+          # the secret must not survive in the output
+          ! logscrub "$HOME/logscrub-snap-test.log" | grep -q "$secret"
+          # the bash completion file is in the snap
+          unsquashfs -l ./logscrub_*.snap | grep -q 'share/bash-completion/completions/logscrub'
+      - name: Upload to the Snap Store
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+          CHANNEL: ${{ vars.SNAP_CHANNEL || 'edge' }}
+        run: |
+          [[ "$CHANNEL" =~ ^(edge|beta|candidate|stable)$ ]] || { echo "bad channel"; exit 1; }
+          snapcraft upload --release="$CHANNEL" ./logscrub_*.snap

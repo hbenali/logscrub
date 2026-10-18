@@ -16,6 +16,10 @@ on:
       tag:
         description: Existing tag to upload (e.g. 1.2.0)
         required: true
+      series:
+        description: Ubuntu series to upload, space separated (default all)
+        required: false
+        default: jammy noble resolute
 
 permissions:
   contents: read
@@ -26,11 +30,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
-      SERIES: jammy noble resolute
+      SERIES: ${{ github.event.inputs.series || 'jammy noble resolute' }}
     steps:
-      - name: Check the tag name
+      - name: Check the tag and series names
         run: |
           [[ "$TAG" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "bad tag name"; exit 1; }
+          [[ "$SERIES" =~ ^[a-z]+( [a-z]+)*$ ]] || { echo "bad series list"; exit 1; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # the orig tarball is made from the tag with git archive

@@ -12,3 +12,13 @@ google-chrome --headless=new --hide-scrollbars --window-size=1280,640 --force-de
 
 Fonts (Inter and JetBrains Mono) are loaded from Google Fonts while rendering, so rendering needs network access; the
 resulting PNG does not.
+
+## Snap Store banner (3:1)
+
+The Snap Store's featured banner must be 3:1, so `docs/banner-store.png` (1440x480) is rendered from `banner-store.html`, the
+same design with a more compact layout (no chips, smaller crop of the UI). Same command, different file and size:
+
+```sh
+google-chrome --headless=new --hide-scrollbars --window-size=1440,480 --force-device-scale-factor=1 \
+  --virtual-time-budget=9000 --screenshot=docs/banner-store.png "file://$PWD/docs/banner-src/banner-store.html"
+```

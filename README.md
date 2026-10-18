@@ -80,7 +80,28 @@ From 1.0, the command-line flags, exit codes, the config file format and the `[R
 
 ## Install
 
-`brew install hbenali/tap/logscrub`; on Ubuntu 22.04, 24.04 and 26.04, `sudo add-apt-repository ppa:hbenali/logscrub && sudo apt install logscrub`; on Fedora 43, 44 and rawhide, `sudo dnf copr enable hbenali/logscrub && sudo dnf install logscrub`; binaries and `.deb` / `.rpm` / `.apk` packages on [Releases](https://github.com/hbenali/logscrub/releases) (checksummed and attested: `gh attestation verify FILE --repo hbenali/logscrub`); `docker run --rm -i hbenali/logscrub < app.log` (also `ghcr.io/hbenali/logscrub`); or `go install github.com/hbenali/logscrub/cmd/logscrub@latest`.
+```sh
+# macOS and Linux: Homebrew
+brew install hbenali/tap/logscrub
+
+# Ubuntu 22.04, 24.04, 26.04 (amd64): PPA
+sudo add-apt-repository ppa:hbenali/logscrub
+sudo apt install logscrub
+
+# Fedora 43, 44, rawhide (x86_64): Copr
+sudo dnf copr enable hbenali/logscrub
+sudo dnf install logscrub
+
+# Docker (Docker Hub; the same image is at ghcr.io/hbenali/logscrub)
+docker run --rm -i hbenali/logscrub < app.log
+
+# From source (Go 1.26+)
+go install github.com/hbenali/logscrub/cmd/logscrub@latest
+```
+
+The PPA and Copr packages install the binary, man page and shell completions, and the package manager keeps them up to date.
+
+Prebuilt binaries (linux, macOS and windows; amd64 and arm64) and `.deb`, `.rpm` and `.apk` packages are on [Releases](https://github.com/hbenali/logscrub/releases). They come with a checksum file and build attestations: `gh attestation verify FILE --repo hbenali/logscrub`. Check an install with `logscrub --version`. More detail, including shell completion: [Installation](https://github.com/hbenali/logscrub/wiki/Installation).
 
 ## Limits
 

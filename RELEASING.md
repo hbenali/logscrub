@@ -52,3 +52,13 @@ cd /tmp/tap && git add -A && git commit -m "feat: logscrub X.Y.Z" && git push
 Check it in a real Homebrew (`docker run --rm ghcr.io/homebrew/brew:latest ...`: `brew tap hbenali/tap && brew install hbenali/tap/logscrub && brew test hbenali/tap/logscrub && brew audit --strict hbenali/tap/logscrub`).
 
 Also bump the pinned version in the README and wiki examples (`uses: hbenali/logscrub@X.Y.Z`, pre-commit `rev:`) and verify the release's artifacts: `gh attestation verify FILE --repo hbenali/logscrub`.
+
+## Launchpad PPA (Ubuntu)
+
+Pushing the tag also runs `.github/workflows/ppa.yml`, which builds signed source packages for jammy, noble and
+resolute (`scripts/build-ppa-source.sh`, packaging in `packaging/debian/`) and uploads them to `ppa:hbenali/logscrub`.
+It is a separate workflow so a failure cannot affect the release. Re-run or test it from the Actions tab with the tag
+name. Launchpad rejects a version it has already seen, so a re-upload needs a new `-1~SERIESn` revision.
+Check the result at https://launchpad.net/~hbenali/+archive/ubuntu/logscrub/+packages.
+
+The `PPA_GPG_KEY` secret is a passphrase-less key made only for CI and registered on the Launchpad account.

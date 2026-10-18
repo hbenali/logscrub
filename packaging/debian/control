@@ -1,0 +1,17 @@
+Source: logscrub
+Section: utils
+Priority: optional
+Maintainer: Houssem Ben Ali <hbenali.tn@gmail.com>
+Build-Depends: debhelper-compat (= 13), golang-1.26-go
+Standards-Version: 4.7.0
+Homepage: https://github.com/hbenali/logscrub
+Rules-Requires-Root: no
+
+Package: logscrub
+Architecture: any
+Depends: ${misc:Depends}
+Description: mask secrets and personal data in logs
+ logscrub reads logs on standard input or from files and masks API keys,
+ tokens, passwords, private keys and personal data such as email addresses,
+ so that the logs can be shared safely. It streams its input, handles very
+ long lines, and can replace values with stable pseudonyms.

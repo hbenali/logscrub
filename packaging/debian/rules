@@ -1,0 +1,35 @@
+#!/usr/bin/make -f
+# The modules are vendored into the orig tarball (see scripts/build-ppa-source.sh)
+# because the Launchpad builders have no network access.
+export PATH := /usr/lib/go-1.26/bin:$(PATH)
+export GOFLAGS := -mod=vendor -trimpath
+export CGO_ENABLED := 0
+export GOCACHE := $(CURDIR)/.build-cache
+export GOPATH := $(CURDIR)/.build-gopath
+
+VERSION := $(shell dpkg-parsechangelog -SVersion | sed 's/-[^-]*$$//')
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	go build -ldflags "-X main.version=$(VERSION)" -o logscrub ./cmd/logscrub
+
+override_dh_auto_test:
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+	go test ./...
+endif
+
+override_dh_auto_install:
+	install -D -m 0755 logscrub debian/logscrub/usr/bin/logscrub
+	install -D -m 0644 cmd/logscrub/completions/logscrub.bash \
+		debian/logscrub/usr/share/bash-completion/completions/logscrub
+	install -D -m 0644 cmd/logscrub/completions/_logscrub \
+		debian/logscrub/usr/share/zsh/vendor-completions/_logscrub
+	install -D -m 0644 cmd/logscrub/completions/logscrub.fish \
+		debian/logscrub/usr/share/fish/vendor_completions.d/logscrub.fish
+
+override_dh_dwz:
+
+override_dh_auto_clean:
+	rm -rf logscrub .build-cache .build-gopath

@@ -2,7 +2,8 @@
 # uploads it to the Snap Store. A separate workflow on purpose: a failure here
 # must never affect the release workflow (tags can't be redone once published).
 # Pushes to main only build and test it, so the tag-only upload is the one step
-# a push does not exercise. Run it by hand to rebuild: Actions > Snap > Run workflow.
+# a push does not exercise. Run it by hand to rebuild: Actions > Snap > Run workflow;
+# tick "upload" there to also upload that build (a version like 1.2.1-6-gHASH) without a tag.
 #
 # Needs, once: the name registered (`snapcraft register logscrub`) and the
 # repository secret SNAPCRAFT_STORE_CREDENTIALS from `snapcraft export-login
@@ -16,6 +17,11 @@ on:
     branches: [main]
     tags: ['[0-9]*']
   workflow_dispatch:
+    inputs:
+      upload:
+        description: Also upload the built snap to the Snap Store (to SNAP_CHANNEL, edge by default)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -50,7 +56,7 @@ jobs:
           # the bash completion file is in the snap
           unsquashfs -l ./logscrub_*.snap | grep -q 'share/bash-completion/completions/logscrub'
       - name: Upload to the Snap Store
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.upload == 'true'
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
           CHANNEL: ${{ vars.SNAP_CHANNEL || 'edge' }}

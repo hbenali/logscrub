@@ -33,7 +33,6 @@ mtime="$(git -C "$root" log -1 --format=%ct "$tag")"
 tar --sort=name --mtime="@$mtime" --owner=0 --group=0 --numeric-owner \
   -cf - "$src" | xz -9 > "logscrub_$tag.orig.tar.xz"
 
-first=1
 for series in "$@"; do
   rm -rf "$src"
   tar -xf "logscrub_$tag.orig.tar.xz"
@@ -47,12 +46,12 @@ logscrub ($version) $series; urgency=medium
 
  -- $maint  $(date -R)
 CL
-  # -sa on the first upload sends the orig tarball, later series reuse it.
-  include=-sd
-  [ "$first" = 1 ] && include=-sa
-  (cd "$src" && dpkg-buildpackage -S "$include" -d -us -uc)
+  # -sa puts the orig tarball in every upload. Launchpad accepts it again when
+  # it is byte-identical, and the series are uploaded within seconds of each
+  # other, before the first one is processed, so -sd would reference a file
+  # that is not in the archive yet and be rejected.
+  (cd "$src" && dpkg-buildpackage -S -sa -d -us -uc)
   debsign -k "$DEBSIGN_KEYID" "logscrub_${version}_source.changes"
-  first=0
 done
 rm -rf "$src"
 ls -1 "$out"/*_source.changes

@@ -485,6 +485,10 @@ func TestRunServesAndShutsDown(t *testing.T) {
 		t.Errorf("rebinding-style Host: status %d, want 403", resp.StatusCode)
 	}
 
+	// A client's idle or pre-dialed connections that never sent a request keep a
+	// graceful shutdown waiting (net/http only closes such a connection after 5 s),
+	// which is as long as this test waits. Go 1.27 does this often.
+	client.CloseIdleConnections()
 	cancel()
 	select {
 	case err := <-errc:

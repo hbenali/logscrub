@@ -7,7 +7,8 @@
 # Usage: scripts/build-ppa-source.sh TAG SERIES... 
 #   e.g. scripts/build-ppa-source.sh 1.2.0 jammy noble resolute
 # Needs: git, go, dpkg-dev, debhelper, devscripts (debsign), and your GPG key.
-# Set DEBSIGN_KEYID to the key that is registered on Launchpad.
+# Set DEBSIGN_KEYID to the key that is registered on Launchpad. Set
+# ORIG_UPLOADED=1 when retrying a series whose siblings are already uploaded.
 # Output: dist/ppa/*_source.changes; upload with: dput ppa:hbenali/logscrub FILE
 set -euo pipefail
 
@@ -33,6 +34,7 @@ mtime="$(git -C "$root" log -1 --format=%ct "$tag")"
 tar --sort=name --mtime="@$mtime" --owner=0 --group=0 --numeric-owner \
   -cf - "$src" | xz -9 > "logscrub_$tag.orig.tar.xz"
 
+first=1
 for series in "$@"; do
   rm -rf "$src"
   tar -xf "logscrub_$tag.orig.tar.xz"
@@ -46,12 +48,15 @@ logscrub ($version) $series; urgency=medium
 
  -- $maint  $(date -R)
 CL
-  # -sa puts the orig tarball in every upload. Launchpad accepts it again when
-  # it is byte-identical, and the series are uploaded within seconds of each
-  # other, before the first one is processed, so -sd would reference a file
-  # that is not in the archive yet and be rejected.
-  (cd "$src" && dpkg-buildpackage -S -sa -d -us -uc)
+  # -sa on the first upload sends the orig tarball, later series reuse it from
+  # the archive. A retry for a series that failed (ORIG_UPLOADED=1) must not
+  # send it again: another machine's xz can compress the same tar to different
+  # bytes, and Launchpad rejects a file whose bytes differ from the archive's.
+  include=-sd
+  [ "$first" = 1 ] && [ -z "${ORIG_UPLOADED:-}" ] && include=-sa
+  (cd "$src" && dpkg-buildpackage -S "$include" -d -us -uc)
   debsign -k "$DEBSIGN_KEYID" "logscrub_${version}_source.changes"
+  first=0
 done
 rm -rf "$src"
 ls -1 "$out"/*_source.changes

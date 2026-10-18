@@ -31,6 +31,8 @@ jobs:
     env:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
       SERIES: ${{ github.event.inputs.series || 'jammy noble resolute' }}
+      # naming a series means a retry: the orig tarball is already in the archive
+      ORIG_UPLOADED: ${{ github.event.inputs.series && '1' || '' }}
     steps:
       - name: Check the tag and series names
         run: |
